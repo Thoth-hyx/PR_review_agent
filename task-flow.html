@@ -1,0 +1,1053 @@
+<title>EvoAgent 任务链路</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+
+<style>
+:root {
+  --ground:      #F5F7F9;
+  --surface:     #FFFFFF;
+  --panel:       #FFFFFF;
+  --line:        #DCE1E8;
+  --line-soft:   #E9EDF2;
+  --ink:         #151C25;
+  --ink-2:       #39424E;
+  --muted:       #5D6977;
+  --accent:      #A65D00;
+  --accent-soft: #F5EAD8;
+  --run:         #2563A8;
+  --run-soft:    #E4EEF9;
+  --ok:          #1B7A4E;
+  --ok-soft:     #E1F1E9;
+  --wait:        #64707F;
+  --wait-soft:   #EDF0F4;
+  --fail:        #B23A2E;
+  --fail-soft:   #FAE7E4;
+  --sans: 'IBM Plex Sans', 'Noto Sans SC', system-ui, -apple-system, 'Microsoft YaHei', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --shadow: 0 1px 2px rgba(21,28,37,.05), 0 8px 24px -18px rgba(21,28,37,.35);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:      #0D1218;
+    --surface:     #151C25;
+    --panel:       #FFFFFF;
+    --line:        #26313F;
+    --line-soft:   #1E2833;
+    --ink:         #E2E9F1;
+    --ink-2:       #C2CCD8;
+    --muted:       #8B98A9;
+    --accent:      #E9A23B;
+    --accent-soft: #2E2415;
+    --run:         #5FA0E0;
+    --run-soft:    #16283A;
+    --ok:          #4FBF85;
+    --ok-soft:     #122C21;
+    --wait:        #9AA6B5;
+    --wait-soft:   #1C242E;
+    --fail:        #E87366;
+    --fail-soft:   #331914;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -18px rgba(0,0,0,.8);
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground:      #0D1218;
+  --surface:     #151C25;
+  --panel:       #FFFFFF;
+  --line:        #26313F;
+  --line-soft:   #1E2833;
+  --ink:         #E2E9F1;
+  --ink-2:       #C2CCD8;
+  --muted:       #8B98A9;
+  --accent:      #E9A23B;
+  --accent-soft: #2E2415;
+  --run:         #5FA0E0;
+  --run-soft:    #16283A;
+  --ok:          #4FBF85;
+  --ok-soft:     #122C21;
+  --wait:        #9AA6B5;
+  --wait-soft:   #1C242E;
+  --fail:        #E87366;
+  --fail-soft:   #331914;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -18px rgba(0,0,0,.8);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 56px 32px 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+}
+
+/* ---------- header ---------- */
+
+.masthead { display: flex; flex-direction: column; gap: 18px; }
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.eyebrow::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.9rem, 1.3rem + 2vw, 2.7rem);
+  font-weight: 600;
+  letter-spacing: -.02em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.standfirst {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--ink-2);
+  font-size: 1.02rem;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.fact {
+  flex: 1 1 160px;
+  padding: 14px 20px 14px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-right: 1px solid var(--line-soft);
+}
+.fact:last-child { border-right: 0; }
+.fact dt {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.fact dd { margin: 0; font-size: .9rem; font-weight: 500; }
+
+/* ---------- sections ---------- */
+
+section { display: flex; flex-direction: column; gap: 20px; }
+
+.sec-head { display: flex; align-items: baseline; gap: 14px; }
+.sec-num {
+  font-family: var(--mono);
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: .06em;
+  padding-top: 2px;
+}
+h2 {
+  margin: 0;
+  font-size: 1.28rem;
+  font-weight: 600;
+  letter-spacing: -.01em;
+}
+.sec-note { margin: 0; color: var(--muted); font-size: .9rem; max-width: 66ch; }
+
+h3 {
+  margin: 0;
+  font-size: .82rem;
+  font-family: var(--mono);
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---------- figure panel (pinned light so mermaid reads in both themes) ---------- */
+
+figure {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+figure .fig-body {
+  padding: 24px 18px;
+  overflow-x: auto;
+  background: #FFFFFF;
+}
+figure figcaption {
+  padding: 11px 18px;
+  border-top: 1px solid #E4E8EE;
+  background: #F7F9FB;
+  color: #5D6977;
+  font-size: .8rem;
+  font-family: var(--mono);
+  letter-spacing: .01em;
+}
+pre.mermaid {
+  margin: 0;
+  display: flex;
+  justify-content: safe center;
+  background: transparent;
+  color: #151C25;
+  font-family: 'IBM Plex Sans', 'Noto Sans SC', system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+}
+pre.mermaid svg { display: block; height: auto; }
+
+/* ---------- tables ---------- */
+
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: .875rem; }
+th, td { text-align: left; padding: 11px 16px; vertical-align: top; }
+thead th {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  background: var(--surface);
+}
+tbody tr + tr td { border-top: 1px solid var(--line-soft); }
+tbody tr:hover td { background: var(--wait-soft); }
+td code, th code { font-family: var(--mono); font-size: .84em; }
+td:first-child { white-space: nowrap; }
+.num { font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: .84em; color: var(--muted); }
+
+code {
+  font-family: var(--mono);
+  font-size: .86em;
+  background: var(--wait-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  padding: .08em .38em;
+}
+
+/* ---------- chips ---------- */
+
+.chip {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: .04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.c-run   { background: var(--run-soft);  color: var(--run);  border-color: color-mix(in srgb, var(--run) 28%, transparent); }
+.c-ok    { background: var(--ok-soft);   color: var(--ok);   border-color: color-mix(in srgb, var(--ok) 28%, transparent); }
+.c-wait  { background: var(--wait-soft); color: var(--wait); border-color: var(--line); }
+.c-fail  { background: var(--fail-soft); color: var(--fail); border-color: color-mix(in srgb, var(--fail) 28%, transparent); }
+.c-acc   { background: var(--accent-soft); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+
+/* ---------- callout ---------- */
+
+.note {
+  border-left: 2px solid var(--accent);
+  background: var(--surface);
+  border-radius: 0 8px 8px 0;
+  padding: 14px 18px;
+  font-size: .9rem;
+  color: var(--ink-2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.note strong { color: var(--ink); font-weight: 600; }
+
+/* ---------- legend ---------- */
+
+.legend { display: flex; flex-wrap: wrap; gap: 10px 22px; }
+.legend-item { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--ink-2); }
+
+/* ---------- path cards ---------- */
+
+.paths { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.path {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.path h4 { margin: 0; font-size: .95rem; font-weight: 600; }
+.path ol { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; }
+.path li { font-size: .83rem; color: var(--ink-2); font-family: var(--mono); line-height: 1.5; }
+.path .when { font-size: .78rem; color: var(--muted); }
+
+footer {
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+  color: var(--muted);
+  font-size: .82rem;
+  font-family: var(--mono);
+}
+
+@media (max-width: 620px) {
+  .wrap { padding: 36px 18px 72px; gap: 44px; }
+  .fact { flex-basis: 50%; }
+}
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">EvoAgent v0.3.0 · 调用链参考</div>
+    <h1>一次 PR 审查任务,从 HTTP 入口到报告落库</h1>
+    <p class="standfirst">
+      三条入口路径汇入同一个执行器;harness 把任务切成三个节点,runtime 负责节点的重试与检查点,
+      <code>AgenticReviewer</code> 在 <code>executing</code> 节点内部跑完整的七阶段多智能体协作。
+      下面按调用顺序展开,每段标出所在的文件与方法。
+    </p>
+    <dl class="facts">
+      <div class="fact"><dt>入口</dt><dd>service.py · ReviewService</dd></div>
+      <div class="fact"><dt>执行器</dt><dd>harness.py · ReviewHarness</dd></div>
+      <div class="fact"><dt>机制层</dt><dd>runtime.py · AgentRuntime</dd></div>
+      <div class="fact"><dt>智能层</dt><dd>agentic_core.py</dd></div>
+      <div class="fact"><dt>持久化</dt><dd>store.py · checkpoints</dd></div>
+      <div class="fact"><dt>队列</dt><dd>task_queue.py · TaskQueue</dd></div>
+    </dl>
+  </header>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">00</span><h2>状态与存储</h2></div>
+    <p class="sec-note">读下面任何一张图之前,先记住两个词:任务状态写在 <code>tasks.state</code> 列,检查点写在 <code>checkpoints</code> 表,两者由不同代码写入。</p>
+    <div class="legend">
+      <span class="legend-item"><span class="chip c-wait">PENDING</span> 已建任务,未开始</span>
+      <span class="legend-item"><span class="chip c-run">PLANNING / EXECUTING / REVIEWING</span> 三个节点各自的进度</span>
+      <span class="legend-item"><span class="chip c-ok">SUCCESS</span> 报告已落库</span>
+      <span class="legend-item"><span class="chip c-fail">FAILED</span> 异常或预算耗尽</span>
+      <span class="legend-item"><span class="chip c-acc">CANCELLED</span> 用户请求取消</span>
+    </div>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>存储位置</th><th>谁写</th><th>用来做什么</th></tr></thead>
+        <tbody>
+          <tr><td><code>tasks</code> 表</td><td><code>store.create</code> / <code>transition</code> / <code>succeed</code></td><td>任务状态、报告、取消标志</td></tr>
+          <tr><td><code>task_payloads</code> 表</td><td><code>store.save_task_payload</code></td><td>原始 diff 文本</td></tr>
+          <tr><td><code>trace_events</code> 表</td><td><code>store.transition</code> 附带写入</td><td>进度流水,人看的</td></tr>
+          <tr><td><code>checkpoints</code> 表</td><td>runtime 自动写 + agentic 手动写</td><td>断点续跑,程序看的</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">01</span><h2>全链路总览</h2></div>
+    <p class="sec-note">三条入口路径的差别只在前半段——任务怎么被创建、由谁触发执行。汇入 <code>ReviewService._run_review</code> 之后完全一致。</p>
+    <figure>
+      <div class="fig-body">
+<pre class="mermaid">
+flowchart TD
+    A["HTTP 请求 / GitHub Webhook"] --> B["ReviewService._create_task 建任务行"]
+    B --> C{"哪条入口"}
+    C -->|"create_review 同步"| D["ReviewService._run_review"]
+    C -->|"enqueue_review 异步"| E["TaskQueue.submit"]
+    C -->|"handle_github_pull_request"| E
+    E --> F["TaskQueue._deliver"]
+    F -->|"内存后端"| G["线程池线程"]
+    F -->|"Redis 后端"| H["TaskQueue._redis_worker"]
+    G --> I["ReviewService._process_queued"]
+    H --> I
+    I --> D
+    D --> J["ReviewHarness.run"]
+    J --> K{"已是 SUCCESS 且有报告"}
+    K -->|"是, 幂等短路"| L["直接返回已存报告"]
+    K -->|"否"| M["store.load_checkpoints 恢复游标"]
+    M --> N["AgentRuntime.execute 节点循环"]
+    N --> O["节点 planning"]
+    O --> P["节点 executing"]
+    P --> Q["节点 reviewing"]
+    Q --> R["store.succeed 落库报告"]
+</pre>
+      </div>
+      <figcaption>图 1 · 从入口到落库。实线主路径,菱形是分叉点。E / F / G / H 只在异步模式下出现。</figcaption>
+    </figure>
+
+    <div class="paths">
+      <div class="path">
+        <h4>A · 同步审查</h4>
+        <span class="when">调用方阻塞等待报告</span>
+        <ol>
+          <li>ReviewService.create_review</li>
+          <li>_validate_review / _require_agentic_model</li>
+          <li>_create_task → store.create</li>
+          <li>_run_review → ReviewHarness.run</li>
+        </ol>
+      </div>
+      <div class="path">
+        <h4>B · 异步审查</h4>
+        <span class="when">立即返回 PENDING,后台线程执行</span>
+        <ol>
+          <li>ReviewService.enqueue_review</li>
+          <li>_create_task → store.create</li>
+          <li>TaskQueue.submit → _deliver</li>
+          <li>_process_queued → _run_review</li>
+        </ol>
+      </div>
+      <div class="path">
+        <h4>C · GitHub Webhook</h4>
+        <span class="when">PR opened / reopened / synchronize</span>
+        <ol>
+          <li>handle_github_pull_request</li>
+          <li>store.claim_webhook 去重</li>
+          <li>_create_deferred_task 只存 diff_url</li>
+          <li>_process_queued 里 fetch_diff</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="note">
+      <strong>路径 C 的区别:</strong>建任务时不下载 diff,只把 <code>diff_url</code> 存进任务输入。
+      真正取 diff 的动作发生在队列消费者 <code>ReviewService._process_queued</code> 里——
+      这样 GitHub 的 webhook 超时窗口内不需要等网络下载。
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">02</span><h2>异步审查链路</h2></div>
+    <p class="sec-note">同一个 <code>POST /v1/reviews</code>,加一个 <code>?async=true</code> 就换一条路(<code>api.py:353</code>)。返回值从 <strong>201</strong> 变 <strong>202</strong>,状态从 <code>SUCCESS</code> 变 <code>PENDING</code>,执行从调用方线程挪到队列消费者线程。</p>
+    <div class="note">
+      <strong>前半段完全一样。</strong><code>enqueue_review</code> 把同步路径那 6 个前置校验和 <code>_create_task</code> 原样跑了一遍——diff 在入队前就已经写进 <code>task_payloads</code> 了。差别只在最后一行:同步调 <code>_run_review</code>,异步调 <code>queue.submit</code>。
+    </div>
+
+    <figure>
+      <div class="fig-body">
+<pre class="mermaid">
+flowchart TD
+    A["POST /v1/reviews 异步"] --> B["enqueue_review 立即返回 202"]
+    B --> C["TaskQueue.submit message_id 等于 task_id"]
+    C --> D{"queue.backend"}
+    D -->|"redis-streams"| E["XADD 到 review:stream"]
+    D -->|"memory-acked"| F["线程池 submit _deliver"]
+    E --> G["_redis_worker 阻塞读"]
+    G --> H["_deliver"]
+    F --> H
+    H --> I["ReviewService._process_queued"]
+    I --> J{"拿得到 diff 吗"}
+    J -->|"task_payloads 里有"| L["_run_review"]
+    J -->|"没有但有 diff_url"| K["fetch_diff 下载后落库"]
+    J -->|"都没有"| M["PermanentTaskError"]
+    K --> L
+    L --> N["按需回帖到 PR"]
+    L -->|"抛异常"| O{"attempt 到上限了吗"}
+    O -->|"没到"| P["退避后重投"]
+    P --> H
+    O -->|"到了"| Q["_dead_letter"]
+    M --> Q
+    Q --> R["_on_dead_letter 落 failed 加 critical 告警"]
+</pre>
+      </div>
+      <figcaption>图 2 · 异步链路。从 <code>_deliver</code> 往后两种队列后端共用同一段代码;右侧那圈是重试与死信。</figcaption>
+    </figure>
+
+    <h3>两种后端</h3>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>环节</th><th><code>redis-streams</code></th><th><code>memory-acked</code></th></tr></thead>
+        <tbody>
+          <tr><td>判定</td><td><code>self._redis</code> 非空</td><td><code>self._redis</code> 为 <code>None</code></td></tr>
+          <tr><td>入队</td><td><code>XADD evoagent:review:stream</code></td><td>直接 <code>ThreadPoolExecutor.submit(_deliver)</code></td></tr>
+          <tr><td>消费</td><td><code>workers</code> 个 <code>_redis_worker</code> 线程,<code>XREADGROUP</code> 阻塞 1000ms</td><td>线程池自己跑,无消费者组</td></tr>
+          <tr><td>重投</td><td><code>XADD</code> 回同一个 stream,<strong>无退避</strong></td><td><code>threading.Timer</code> 延迟后重新 submit,<strong>有退避</strong></td></tr>
+          <tr><td>确认</td><td>处理完才 <code>XACK</code></td><td>无 ACK</td></tr>
+          <tr><td>崩溃恢复</td><td><code>XAUTOCLAIM</code> 认领闲置超 60 秒的消息</td><td>无,进程挂掉任务即停在 <code>PENDING</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sec-note">后者只适合单进程开发环境。<code>_reclaim_stale</code> 里那句 <code>min_idle_time = lease_seconds * 1000</code>(<code>task_queue.py:126</code>)是毫秒,<code>lease_seconds</code> 默认 60,所以认领阈值是 60 秒。</p>
+
+    <h3>重试阶梯与死信</h3>
+    <p class="sec-note"><code>max_attempts</code> 默认 3,envelope 里的 <code>attempt</code> 从 0 开始,<code>_deliver</code> 一进来先 <code>+1</code>(<code>task_queue.py:71</code>)。</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>投递次序</th><th><code>attempt</code></th><th>判断</th><th>后果</th></tr></thead>
+        <tbody>
+          <tr><td>第 1 次</td><td class="num">1</td><td><code>1 &gt;= 3</code> 假</td><td>退避 <code>2**0</code> = <strong>1 秒</strong>后重投</td></tr>
+          <tr><td>第 2 次</td><td class="num">2</td><td><code>2 &gt;= 3</code> 假</td><td>退避 <code>2**1</code> = <strong>2 秒</strong>后重投</td></tr>
+          <tr><td>第 3 次</td><td class="num">3</td><td><code>3 &gt;= 3</code> 真</td><td><strong>进死信</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sec-note">退避公式是 <code>min(2 ** (attempt - 1), 10)</code>,封顶 10 秒,<strong>只在内存后端生效</strong>。Redis 后端失败即 <code>XADD</code> 回队(<code>task_queue.py:81-84</code>),立刻可被重读。</p>
+    <div class="note">
+      <strong><code>PermanentTaskError</code> 不参与这套阶梯。</strong>它在 <code>task_queue.py:75-77</code> 有独立的 except 分支,<strong>第一次就进死信,不重试</strong>。<code>_process_queued</code> 里两处会抛它:任务行不存在(<code>service.py:343</code>)和载荷不存在(<code>service.py:361</code>)——这两种情况重试多少次都不会变好。
+    </div>
+
+    <h3>队列重试 = 重跑整个 harness</h3>
+    <p class="sec-note">但代价远低于从头跑。<code>_process_queued</code> 的异常在 <code>service.py:384</code> 被 <code>raise</code> 出去,<code>_deliver</code> 接住并重投;重投后重新进 <code>_run_review</code>,而 <code>ReviewHarness.run</code> 开头有幂等短路(<code>harness.py:69-70</code>),runtime 会跳过 <code>completed</code> 的节点,agentic 会跳过已完成的阶段。<strong>已经花掉的模型调用不会重花。</strong></p>
+
+    <h3>和同步路径的全部差别</h3>
+    <div class="tbl">
+      <table>
+        <thead><tr><th></th><th>同步 <code>create_review</code></th><th>异步 <code>enqueue_review</code></th></tr></thead>
+        <tbody>
+          <tr><td>HTTP 码</td><td>201</td><td>202</td></tr>
+          <tr><td>返回体</td><td>含完整 <code>report</code></td><td><code>{"task_id", "state": "PENDING", "queue"}</code></td></tr>
+          <tr><td>diff 入库时机</td><td colspan="2">都是 <code>_create_task</code> 里就 <code>save_task_payload</code>,入队前已完成</td></tr>
+          <tr><td>执行线程</td><td>调用方线程</td><td>队列消费者线程</td></tr>
+          <tr><td>失败处理</td><td>直接抛给调用方</td><td>先 <code>releases.observe</code> + <code>alerts.evaluate</code>,再 <code>raise</code> 交给队列</td></tr>
+          <tr><td>回帖 PR</td><td>不做</td><td><code>github_issue_url</code> 有值且 <code>auto_post_review</code> 为真时做</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">03</span><h2>GitHub Webhook 链路</h2></div>
+    <p class="sec-note">这条路径<strong>不走鉴权主体</strong>,靠 HMAC 签名自证身份。请求进来先过 7 道关卡,再登记一个「只存 URL、不存 diff」的延迟任务。</p>
+
+    <figure>
+      <div class="fig-body">
+<pre class="mermaid">
+flowchart TD
+    A["POST /webhooks/github"] --> B["X-GitHub-Event 必须是 pull_request"]
+    B --> C["webhook secret 必须已配置"]
+    C --> D["HMAC-SHA256 验签"]
+    D --> E["updated_at 必须在重放窗口内"]
+    E --> F["claim_webhook 抢占 delivery_id"]
+    F -->|"首次见到"| G["action 属于 opened / reopened / synchronize"]
+    F -->|"重复且摘要一致"| X["返回 duplicate 不建任务"]
+    F -->|"重复但摘要不同"| Y["抛 ValueError"]
+    G --> H["_create_deferred_task 只存 diff_url"]
+    H --> I["queue.submit 入队"]
+    I --> J["complete_webhook 回填 task_id"]
+    J --> K["返回 202"]
+    K --> L["worker 里 fetch_diff 补下载"]
+</pre>
+      </div>
+      <figcaption>图 3 · Webhook 链路。左侧一列是七道关卡,关卡全过才建任务;右上三个出口是幂等与安全分支。</figcaption>
+    </figure>
+
+    <h3>七道关卡</h3>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>#</th><th>检查</th><th>位置</th><th>不通过时</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td><code>X-GitHub-Event</code> 等于 <code>pull_request</code></td><td><code>api.py:369</code></td><td>202 <code>ignored</code></td></tr>
+          <tr><td class="num">2</td><td><code>github_webhook_secret</code> 已配置</td><td><code>api.py:372</code></td><td>503</td></tr>
+          <tr><td class="num">3</td><td><code>X-Hub-Signature-256</code> 验签通过</td><td><code>api.py:375</code></td><td>401</td></tr>
+          <tr><td class="num">4</td><td><code>pull_request.updated_at</code> 在重放窗口内</td><td><code>api.py:386</code></td><td>409</td></tr>
+          <tr><td class="num">5</td><td><code>delivery_id</code> 未被用过</td><td><code>store.py:920</code></td><td>返回 <code>duplicate</code>,不建任务</td></tr>
+          <tr><td class="num">6</td><td><code>action</code> 属于三个白名单值</td><td><code>service.py:426</code></td><td>202 <code>ignored</code></td></tr>
+          <tr><td class="num">7</td><td><code>repository</code> / <code>number</code> / <code>diff_url</code> 齐全</td><td><code>service.py:434</code></td><td><code>ValueError</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <strong>第 4 关用的是 <code>abs(...)</code>。</strong><code>api.py:386</code> 算的是 <code>abs(now - updated_at)</code>——事件时间无论在窗口之前还是之后,只要偏离超过 <code>webhook_max_age_seconds</code> 一律拒。既挡重放,也挡时钟漂移到未来的畸形事件。
+    </div>
+
+    <h3>三层幂等</h3>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>层</th><th>机制</th><th>挡什么</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td><code>webhook_deliveries.delivery_id</code> 唯一约束,<code>INSERT</code> 成功即抢占</td><td>同一个 delivery 被投两次,建出两个任务</td></tr>
+          <tr><td class="num">2</td><td>重复时比对 <code>payload_sha256</code></td><td><code>delivery_id</code> 被复用于<strong>不同内容</strong>——直接 <code>ValueError</code></td></tr>
+          <tr><td class="num">3</td><td><code>upsert_comment</code> 正文里的 <code>&lt;!-- evoagent-review:task_id --&gt;</code></td><td>回帖被重放,PR 上出现重复评论</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sec-note">第 1 层与第 2 层合起来是<strong>一次比对</strong>:先试 <code>INSERT</code>,撞唯一约束说明 delivery 见过,再取出已存的摘要跟本次比。摘要相同 = 真正的重复投递;不同 = 有人拿旧 delivery_id 塞了新内容,这是异常,直接抛。</p>
+
+    <h3>延迟任务:只登记 URL,不下载 diff</h3>
+    <div class="tbl">
+      <table>
+        <thead><tr><th></th><th><code>_create_task</code>(同步 / 异步)</th><th><code>_create_deferred_task</code>(Webhook)</th></tr></thead>
+        <tbody>
+          <tr><td>入参</td><td>拿到完整 <code>diff</code> 字符串</td><td>只拿到 <code>diff_url</code></td></tr>
+          <tr><td>落库</td><td>调 <code>save_task_payload</code> 存 diff</td><td><strong>不调</strong>,只写 <code>diff_pending: True</code></td></tr>
+          <tr><td>校验</td><td>入口处 <code>_validate_review</code></td><td>推迟到 worker 里做</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sec-note">补下载发生在 <code>_process_queued</code>(<code>service.py:346-359</code>),七步:</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>#</th><th>动作</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td><code>store.get_task_payload(task_id)</code> 拿到 <code>None</code></td></tr>
+          <tr><td class="num">2</td><td><code>github_client_for_installation(installation_id)</code> 取回带安装令牌的客户端</td></tr>
+          <tr><td class="num">3</td><td><code>ensure_repository_access(repository)</code> 校验访问权限</td></tr>
+          <tr><td class="num">4</td><td><code>fetch_diff(diff_url)</code> 下载</td></tr>
+          <tr><td class="num">5</td><td><code>_validate_review(repository, diff)</code> <strong>补做入口跳过的校验</strong></td></tr>
+          <tr><td class="num">6</td><td><code>save_task_payload</code> 落库</td></tr>
+          <tr><td class="num">7</td><td><code>update_task_input</code> 写回 <code>diff_pending: False</code>、<code>diff_bytes</code>、<code>diff_sha256</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <strong>为什么要延迟。</strong>下载 diff 是网络动作,放在 webhook 的请求线程里会让响应时间不可控。请求里只登记 URL 并把 <code>diff_url</code> 一起塞进队列消息,把下载推到 worker——<strong>请求路径上只剩一次数据库写入和一次入队</strong>。
+    </div>
+
+    <h3>租户从哪来</h3>
+    <p class="sec-note">Webhook 没有登录用户,租户要靠三级兜底(<code>service.py:414-416</code>):</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>顺序</th><th>来源</th><th>何时命中</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td>调用方传入的 <code>tenant_id</code></td><td>内部转发或测试</td></tr>
+          <tr><td class="num">2</td><td><code>store.installation_tenant(installation_id)</code></td><td>GitHub App 安装记录里查得到</td></tr>
+          <tr><td class="num">3</td><td><code>settings.default_tenant_id</code></td><td>前两级都空</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sec-note">路径 C <strong>没有复用 <code>enqueue_review</code></strong>,而是在 <code>handle_github_pull_request</code> 里自己走了一遍校验和入队。差别是它用 <code>_create_deferred_task</code>,且把 <code>_validate_review</code> 推到 worker(此刻还没有 diff 可校验)。返回体里多一个 <code>will_post_to_github</code>,值就是 <code>auto_post_review</code>。</p>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">04</span><h2>harness 三个节点</h2></div>
+    <p class="sec-note"><code>ReviewHarness.run</code> 把三个方法包成 <code>RuntimeNode</code> 交给 <code>AgentRuntime.execute</code>。节点之间不互相调用,靠一个共享字典传值。</p>
+    <figure>
+      <div class="fig-body">
+<pre class="mermaid">
+flowchart LR
+    S["共享字典 state"] --> N1["planning"]
+    N1 -->|"返回 parsed"| S
+    S --> N2["executing"]
+    N2 -->|"返回 findings"| S
+    S --> N3["reviewing"]
+    N3 -->|"返回 report"| S
+</pre>
+      </div>
+      <figcaption>图 4 · 三个节点读写同一个字典。箭头回到字典,表示返回值被合并进去,而不是传给下一个节点。</figcaption>
+    </figure>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>顺序</th><th>节点名</th><th>handler 方法</th><th>读 state 的键</th><th>返回的增量</th><th>写了什么</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="num">1</td>
+            <td><code>planning</code></td>
+            <td><code>ReviewHarness._planning</code></td>
+            <td><code>diff</code></td>
+            <td><code>{"parsed": …}</code></td>
+            <td><span class="chip c-run">PLANNING</span> <code>store.transition</code></td>
+          </tr>
+          <tr>
+            <td class="num">2</td>
+            <td><code>executing</code></td>
+            <td><code>ReviewHarness._executing</code></td>
+            <td><code>parsed</code> <code>diff</code> <code>task_id</code> <code>repository</code></td>
+            <td><code>{"findings": […]}</code></td>
+            <td><span class="chip c-run">EXECUTING</span> <code>store.transition</code></td>
+          </tr>
+          <tr>
+            <td class="num">3</td>
+            <td><code>reviewing</code></td>
+            <td><code>ReviewHarness._reviewing</code></td>
+            <td><code>parsed</code> <code>findings</code></td>
+            <td><code>{"report": …}</code></td>
+            <td><span class="chip c-run">REVIEWING</span> <code>store.transition</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>状态机与合法转移</h3>
+    <p class="sec-note"><code>ReviewHarness._transition</code> 按 <code>ALLOWED</code> 表校验每一步转移,并把进度写进 <code>tasks.state</code> 与 <code>trace_events</code>。目标态等于当前态时直接返回——这是节点重试时命中幂等分支的情况。</p>
+    <figure>
+      <div class="fig-body">
+<pre class="mermaid">
+stateDiagram-v2
+    [*] --> PENDING
+    PENDING --> PLANNING
+    PLANNING --> EXECUTING
+    EXECUTING --> REVIEWING
+    REVIEWING --> SUCCESS
+    PENDING --> FAILED
+    PLANNING --> FAILED
+    EXECUTING --> FAILED
+    REVIEWING --> FAILED
+    PENDING --> CANCELLED
+    PLANNING --> CANCELLED
+    EXECUTING --> CANCELLED
+    REVIEWING --> CANCELLED
+    SUCCESS --> [*]
+    FAILED --> [*]
+    CANCELLED --> [*]
+</pre>
+      </div>
+      <figcaption>图 5 · ALLOWED 表的全部合法边。任何一步 FAILED / CANCELLED 都由 harness.run 的 except 分支写入。</figcaption>
+    </figure>
+
+    <h3>reviewing 节点里的 collaboration 从哪来</h3>
+    <p class="sec-note"><code>_reviewing</code> 组装 <code>ReviewReport</code> 前会先取协作摘要,这里有两条路,先走哪条由鸭子类型决定。</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>顺序</th><th>条件</th><th>取值来源</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="num">1</td>
+            <td><code>reviewer</code> 上有 <code>collaboration_summary</code> 方法且返回非空</td>
+            <td><code>AgenticReviewer.collaboration_summary</code>——本次运行刚结束,数据还在内存里,顺带把 <code>run_mode</code>、<code>components</code>、<code>execution</code> 也一起取出来</td>
+          </tr>
+          <tr>
+            <td class="num">2</td>
+            <td>否则回落到 <code>self._persisted_collaboration_summary</code></td>
+            <td>读 <code>store.get(task_id)["collaboration"]</code>,也就是 <code>agent_messages</code> 表</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <strong>第二条路当前恒为空。</strong>它读的 <code>agent_messages</code> 表由 <code>store.record_agent_message</code> 写入,而全仓库没有任何地方调用这个方法——所以 <code>_persisted_collaboration_summary</code> 永远在读一张空表,返回 <code>{}</code>。它声称的协议名 <code>plan-challenge-revise-evidence-verify-arbitrate</code> 在仓库里也没有生产者;当前引擎实际用的是 <code>lead-workers</code>,由 <code>collaboration_summary()</code> 产出。这段代码是留给旧协议的读侧残留。
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">05</span><h2>runtime 的节点循环</h2></div>
+    <p class="sec-note"><code>AgentRuntime.execute</code> 不知道任何业务,只做四件事:按序调 <code>node.handler(state)</code>、合并返回值、每步前查预算与取消、每个节点成功后写检查点。</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>循环中的动作</th><th>代码位置</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>恢复检查点</td><td><code>AgentRuntime.execute</code></td><td>节点状态为 <code>completed</code> 时把上次的增量合并回字典,跳过 handler</td></tr>
+          <tr><td>预算与取消闸门</td><td><code>AgentRuntime.execute</code> 内的 <code>guard</code></td><td>每次尝试前调 <code>store.is_cancelled</code>,并检查步数与单调时钟</td></tr>
+          <tr><td>调用节点</td><td><code>node.handler(state)</code></td><td>回调进 harness 的 <code>_planning</code> / <code>_executing</code> / <code>_reviewing</code></td></tr>
+          <tr><td>合并与落盘</td><td><code>AgentRuntime.execute</code></td><td><code>state.update(output)</code> 后调 <code>store.save_checkpoint</code></td></tr>
+          <tr><td>重试</td><td><code>AgentRuntime.execute</code> 内层循环</td><td>失败也消耗步数并写一条 <code>failed</code> 检查点;成功则 break</td></tr>
+          <tr><td>事件与追踪</td><td><code>AgentRuntime.execute</code> 内的 <code>emit</code></td><td>发出 <code>RuntimeEvent</code>;OpenTelemetry span 由 harness 的 <code>_span</code> 提供</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <strong>三处不重试的异常:</strong><code>ValueError</code>、<code>RuntimeCancelled</code>、<code>RuntimeBudgetExceeded</code> 直接穿透重试循环,一路抛到 <code>ReviewHarness.run</code> 的 <code>except</code>,由它落成 FAILED 或 CANCELLED。
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">06</span><h2>executing 节点内部:agentic 七阶段</h2></div>
+    <p class="sec-note">整个多智能体协作发生在 <code>ReviewHarness._executing</code> 调用的 <code>AgenticReviewer.review_with_context</code> 里面。它是一张阶段表:每个阶段跑完就把结果写进 session 字典并存检查点。</p>
+    <figure>
+      <div class="fig-body">
+<pre class="mermaid">
+flowchart TD
+    X["ReviewHarness._executing"] --> Y["AgenticReviewer.review_with_context"]
+    Y --> Z["_review_with_context"]
+    Z --> Z0["阶段 0 记忆召回 + 装配工具套件"]
+    Z0 --> Z1["_load_lead_session 尝试续跑"]
+    Z1 --> Z2["_agentic 阶段表"]
+    Z2 --> P1["1  _scan 本地规则 + 扫描器"]
+    P1 --> P2["2  _run_lead delegate"]
+    P2 --> P3["3  _run_pending_assignments 两个 worker 并行"]
+    P3 --> P4{"risk_level"}
+    P4 -->|"high"| P5["4  _run_lead assess-workers"]
+    P5 --> P6["5  返工一轮"]
+    P4 -->|"low / normal"| P7
+    P6 --> P7["6  _run_critic 盲审"]
+    P7 --> P8["7  _run_lead finalize"]
+    P8 --> P9["FindingGate.apply 四道门"]
+    P9 --> P10["_persist_task_memory"]
+    P10 --> P11["store.save_checkpoint agentic-summary"]
+</pre>
+      </div>
+      <figcaption>图 6 · 阶段 0 在进入阶段表之前执行;阶段 4 与 5 只在 risk_level 为 high 时执行;带 LLM 的环节共四次模型调用。</figcaption>
+    </figure>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>#</th><th>阶段</th><th>入口方法</th><th>模型</th><th>产出写进 session 的键</th></tr></thead>
+        <tbody>
+          <tr><td class="num">0</td><td>装配与记忆召回</td><td><code>AgenticReviewer._review_with_context</code></td><td><span class="chip c-wait">无</span></td><td>不写 session;产出 <code>memory_context</code> 传给后续所有阶段</td></tr>
+          <tr><td class="num">1</td><td>扫描</td><td><code>AgenticReviewer._scan</code></td><td><span class="chip c-wait">无</span></td><td><code>scanner_complete</code> <code>scanner_findings</code> <code>scanner_components</code></td></tr>
+          <tr><td class="num">2</td><td>委派</td><td><code>AgenticReviewer._run_lead("delegate")</code></td><td><span class="chip c-run">LLM 1</span></td><td><code>delegations</code> <code>risk_level</code> <code>lead_delegation</code></td></tr>
+          <tr><td class="num">3</td><td>worker 并行</td><td><code>AgenticReviewer._run_pending_assignments</code></td><td><span class="chip c-run">每 worker 一轮</span></td><td><code>worker_results</code></td></tr>
+          <tr><td class="num">4</td><td>评估返工要求</td><td><code>AgenticReviewer._run_lead("assess-workers")</code></td><td><span class="chip c-run">LLM 2</span></td><td><code>lead_assessments</code></td></tr>
+          <tr><td class="num">5</td><td>返工一轮</td><td><code>AgenticReviewer._run_pending_assignments(round=1)</code></td><td><span class="chip c-run">worker 再跑</span></td><td><code>revision_results</code> <code>revision_rounds</code></td></tr>
+          <tr><td class="num">6</td><td>盲审</td><td><code>AgenticReviewer._run_critic</code></td><td><span class="chip c-run">LLM 3</span></td><td><code>critic_decisions</code> <code>critic_candidates</code> <code>critic_complete</code></td></tr>
+          <tr><td class="num">7</td><td>终审</td><td><code>AgenticReviewer._run_lead("finalize")</code></td><td><span class="chip c-run">LLM 4</span></td><td><code>lead_final</code> <code>accepted_findings</code> <code>stop_reason</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>单角色循环 BoundedRole.run</h3>
+    <p class="sec-note">阶段 2 到 7 里每一次模型交互,都由 <code>BoundedRole.run</code> 驱动。Lead 与 Critic 拿到的是空工具表,worker 拿到按角色白名单过滤后的工具表。</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>每轮顺序</th><th>调用</th><th>结果</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td><code>working_memory_supplier()</code></td><td>任务内工作记忆,注入到 payload 的 <code>working_memory</code> 键</td></tr>
+          <tr><td class="num">2</td><td><code>ContextManager.build_managed_context</code></td><td>按预算压缩 payload 与历史观察</td></tr>
+          <tr><td class="num">3</td><td><code>JsonChatClient.complete_json</code></td><td>唯一的模型调用点</td></tr>
+          <tr><td class="num">4</td><td><code>ToolRegistry.invoke</code></td><td>仅当动作是 <code>tool</code>;失败也记成一条观察喂回下一轮</td></tr>
+          <tr><td class="num">5</td><td>动作分发</td><td><code>final</code> 时把观察列表挂在 <code>_observations</code> 上返回;其它值抛 <code>ValueError</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <strong>退出条件:</strong>动作返回 <code>final</code>,或 <code>max_steps</code> 用尽后抛 <code>RuntimeBudgetExceeded</code>——后者会穿透 runtime 的重试,直接让整个任务失败。
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">07</span><h2>写库时间线</h2></div>
+    <p class="sec-note">同一个任务会有三个不同的存储层被反复写入,顺序如下。检查点是 upsert,<code>PRIMARY KEY(task_id, node)</code> 决定它只保留最新一份。</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>时刻</th><th>store 方法</th><th>写入目标</th><th>内容</th></tr></thead>
+        <tbody>
+          <tr><td>建任务</td><td><code>store.create</code></td><td><code>tasks</code></td><td>状态 PENDING、模式、租户、发布通道</td></tr>
+          <tr><td>建任务</td><td><code>store.save_task_payload</code></td><td><code>task_payloads</code></td><td>原始 diff 文本</td></tr>
+          <tr><td>run 开头</td><td><code>store.get</code> / <code>store.load_checkpoints</code></td><td>—</td><td>读,决定幂等短路与恢复游标</td></tr>
+          <tr><td>每个节点开始</td><td><code>store.transition</code></td><td><code>tasks</code> + <code>trace_events</code></td><td>状态标签与一行进度流水</td></tr>
+          <tr><td>runtime 每次尝试前</td><td><code>store.is_cancelled</code></td><td>—</td><td>读 <code>cancel_requested</code> 列</td></tr>
+          <tr><td>节点成功</td><td><code>store.save_checkpoint</code></td><td><code>checkpoints</code></td><td>节点名 + handler 返回值</td></tr>
+          <tr><td>每个 agentic 阶段后</td><td><code>store.save_checkpoint("agentic-lead-session")</code></td><td><code>checkpoints</code></td><td>整个 session + 累计 token 消耗</td></tr>
+          <tr><td>审查收尾</td><td><code>store.save_checkpoint("agentic-summary")</code></td><td><code>checkpoints</code></td><td>协作摘要,供 harness 组装报告时读取</td></tr>
+          <tr><td>成功</td><td><code>store.succeed</code></td><td><code>tasks</code> + <code>trace_events</code></td><td>状态 SUCCESS 与整份报告 JSON</td></tr>
+          <tr><td>失败</td><td><code>store.fail</code> + <code>store.record_failure_case</code></td><td><code>tasks</code> + 失败用例表</td><td>错误信息,供演进系统回放</td></tr>
+          <tr><td>取消</td><td><code>store.cancel</code></td><td><code>tasks</code> + <code>trace_events</code></td><td>状态 CANCELLED</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">08</span><h2>中断之后:重跑时跳过了什么</h2></div>
+    <p class="sec-note">恢复不是一段独立的代码,而是同一条路径再跑一次。两层检查点各负责一半:外层跳过整个节点,内层跳过已完成阶段。</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>崩溃位置</th><th>重跑时的行为</th><th>省下的模型调用</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>planning 节点内</td>
+            <td><code>load_checkpoints</code> 无 completed 记录 → 三个节点全部重跑</td>
+            <td>无</td>
+          </tr>
+          <tr>
+            <td>executing 早期(扫描后、委派前)</td>
+            <td>planning 被跳过;<code>_load_lead_session</code> 恢复 session,<code>scanner_complete</code> 为真 → 从委派继续</td>
+            <td>扫描</td>
+          </tr>
+          <tr>
+            <td>worker 并行期间</td>
+            <td>已完成的 worker 留在 <code>worker_results</code> 里,<code>_run_pending_assignments</code> 只调度缺的那些</td>
+            <td>已完成的 worker 那一轮</td>
+          </tr>
+          <tr>
+            <td>critic 阶段</td>
+            <td><code>delegations</code> 与 <code>worker_results</code> 都在 → 从 <code>_run_critic</code> 继续</td>
+            <td>委派 + 全部 worker</td>
+          </tr>
+          <tr>
+            <td>succeed 之前(task 仍是 REVIEWING)</td>
+            <td>三个节点检查点都是 completed → 三个 handler 一个都不执行,直接组装报告</td>
+            <td>全部</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <strong>两层为什么必须都在:</strong>runtime 的重试会把 <code>executing</code> 节点整个重跑一次。若没有内层的 session 检查点,每次重试都要重新走一遍扫描、委派和两个 worker;有了它,重试的代价降到"只剩没做完的那几个阶段"。
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">09</span><h2>关键函数索引</h2></div>
+    <p class="sec-note">按调用顺序排列,可以直接当跳转表用。</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>文件</th><th>方法</th><th>职责</th></tr></thead>
+        <tbody>
+          <tr><td><code>service.py</code></td><td><code>ReviewService.create_review</code></td><td>入口 A:六道校验 → 建任务 → 同步执行</td></tr>
+          <tr><td><code>service.py</code></td><td><code>ReviewService.enqueue_review</code></td><td>入口 B:同样六道校验,末尾改为入队</td></tr>
+          <tr><td><code>service.py</code></td><td><code>ReviewService.handle_github_pull_request</code></td><td>入口 C:delivery 去重 → 建延迟任务 → 入队</td></tr>
+          <tr><td><code>service.py</code></td><td><code>ReviewService._create_task</code></td><td>建任务行、<strong>存 diff 载荷</strong></td></tr>
+          <tr><td><code>service.py</code></td><td><code>ReviewService._create_deferred_task</code></td><td>建任务行、只写 <code>diff_pending</code>,<strong>不存 diff</strong></td></tr>
+          <tr><td><code>store.py</code></td><td><code>claim_webhook</code> / <code>complete_webhook</code></td><td>delivery_id 抢占与回填,webhook 幂等的第 1、2 层</td></tr>
+          <tr><td><code>task_queue.py</code></td><td><code>TaskQueue.submit</code> / <code>_deliver</code></td><td>内存线程池或 Redis 投递,含重试阶梯</td></tr>
+          <tr><td><code>task_queue.py</code></td><td><code>TaskQueue._redis_worker</code> / <code>_reclaim_stale</code></td><td>消费者组读取与超期租约认领</td></tr>
+          <tr><td><code>task_queue.py</code></td><td><code>TaskQueue._dead_letter</code> / <code>replay_dead_letter</code></td><td>进死信与人工重放</td></tr>
+          <tr><td><code>service.py</code></td><td><code>ReviewService._on_dead_letter</code></td><td>死信回调:落 <code>failed</code> + 发 critical 告警</td></tr>
+          <tr><td><code>service.py</code></td><td><code>ReviewService._run_review</code></td><td>转调 <code>ReviewHarness.run</code></td></tr>
+          <tr><td><code>service.py</code></td><td><code>ReviewService._process_queued</code></td><td>队列消费者:取 diff(必要时下载)→ 执行 → 回帖</td></tr>
+          <tr><td><code>harness.py</code></td><td><code>ReviewHarness.run</code></td><td>幂等短路 → 恢复游标 → 交给 runtime → 落终态</td></tr>
+          <tr><td><code>harness.py</code></td><td><code>ReviewHarness._planning</code></td><td>解析 diff,写 PLANNING</td></tr>
+          <tr><td><code>harness.py</code></td><td><code>ReviewHarness._executing</code></td><td>调用审查器,写 EXECUTING</td></tr>
+          <tr><td><code>harness.py</code></td><td><code>ReviewHarness._reviewing</code></td><td>算风险、取协作摘要、组装报告</td></tr>
+          <tr><td><code>harness.py</code></td><td><code>ReviewHarness._transition</code></td><td>状态机校验 + 写进度流水</td></tr>
+          <tr><td><code>runtime.py</code></td><td><code>AgentRuntime.execute</code></td><td>节点循环:预算、取消、重试、检查点</td></tr>
+          <tr><td><code>agentic_core.py</code></td><td><code>AgenticReviewer.review_with_context</code></td><td>登记记忆作用域,保证异常时清理</td></tr>
+          <tr><td><code>agentic_core.py</code></td><td><code>AgenticReviewer._review_with_context</code></td><td>装配依赖 → 阶段表 → 门禁 → 记忆</td></tr>
+          <tr><td><code>agentic_core.py</code></td><td><code>AgenticReviewer._agentic</code></td><td>七阶段会话状态机</td></tr>
+          <tr><td><code>agentic_core.py</code></td><td><code>BoundedRole.run</code></td><td>单角色循环:压缩 → 模型 → 工具</td></tr>
+          <tr><td><code>agentic_core.py</code></td><td><code>_parse_findings</code></td><td>模型输出转 Finding,含位置校验与证据兑现</td></tr>
+          <tr><td><code>context_manager.py</code></td><td><code>build_managed_context</code> / <code>compress_diff</code></td><td>按 token 预算压缩上下文</td></tr>
+          <tr><td><code>repository_tools.py</code></td><td><code>RepositoryToolSuite.registry</code></td><td>按角色白名单注册工具</td></tr>
+          <tr><td><code>gates.py</code></td><td><code>FindingGate.apply</code></td><td>格式 → 证据 → 置信度 → 发布 四道门</td></tr>
+          <tr><td><code>store.py</code></td><td><code>transition</code> / <code>save_checkpoint</code> / <code>succeed</code></td><td>状态、检查点、报告的持久化</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">10</span><h2>三条旁路:取消、死信、回帖</h2></div>
+    <p class="sec-note">主链路之外还有三条支线,都不经过节点循环的正常返回路径。</p>
+
+    <h3>取消 · 轮询式,不是中断式</h3>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>步骤</th><th>位置</th><th>动作</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td><code>ReviewService.cancel_task</code></td><td>调 <code>store.request_cancel</code>,置 <code>cancel_requested = 1</code></td></tr>
+          <tr><td class="num">2</td><td><code>AgentRuntime.execute</code> 内的 <code>guard</code></td><td>下一次节点尝试前调 <code>store.is_cancelled</code>,查到则抛 <code>RuntimeCancelled</code></td></tr>
+          <tr><td class="num">3</td><td>runtime 的 <code>non_retryable</code></td><td>取消异常穿透重试循环,不重试</td></tr>
+          <tr><td class="num">4</td><td><code>ReviewHarness.run</code> 的 <code>except TaskCancelled</code></td><td>调 <code>store.cancel</code>,状态落 CANCELLED,再向上抛</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <strong>它不会打断正在进行的调用。</strong>检查点只在节点尝试之前,所以一次已经发出的模型调用或工具调用会跑完;取消在下一个边界生效。
+    </div>
+
+    <h3>死信 · 队列投递彻底失败</h3>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>步骤</th><th>位置</th><th>动作</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td><code>TaskQueue._deliver</code></td><td>投递失败,或尝试次数超过 <code>queue_max_attempts</code></td></tr>
+          <tr><td class="num">2</td><td><code>TaskQueue._dead_letter</code></td><td>存入死信表,回调服务层</td></tr>
+          <tr><td class="num">3</td><td><code>ReviewService._on_dead_letter</code></td><td>任务若还不是终态则 <code>store.fail</code>,并 <code>store.create_alert</code> 一条 critical 告警</td></tr>
+          <tr><td class="num">4</td><td><code>ReviewService.resume_task</code> / <code>TaskQueue.replay_dead_letter</code></td><td>人工重新入队</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>回帖 · 只有异步路径和 Webhook 路径会做</h3>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>条件</th><th>位置</th><th>动作</th></tr></thead>
+        <tbody>
+          <tr><td><code>payload</code> 带 <code>github_issue_url</code> 且 <code>settings.auto_post_review</code> 为真</td><td><code>ReviewService._process_queued</code></td><td>调 <code>github_client_for_installation</code> 取客户端,再 <code>upsert_comment</code> 把 <code>to_markdown(report)</code> 发到 PR</td></tr>
+          <tr><td>同步路径 <code>create_review</code></td><td>—</td><td>不回帖,直接把报告返回给调用方</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <strong>幂等标记:</strong>回帖正文里带一个 <code>&lt;!-- evoagent-review:&lt;task_id&gt; --&gt;</code> 注释,<code>upsert_comment</code> 靠它找到已有评论并更新,而不是重复发帖。
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">11</span><h2>附:这些对象什么时候被造出来</h2></div>
+    <p class="sec-note">图上出现的每个对象都有明确的构造时机。按生命周期从长到短排列。</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>时机</th><th>位置</th><th>造出什么</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>进程启动一次</td>
+            <td><code>ReviewService.__init__</code></td>
+            <td><code>store</code>、<code>MemoryManager</code>、<code>ContextManager</code>、<code>SkillRegistry</code>、<code>JsonChatClient</code>、<code>AgenticReviewer</code>、<code>ReviewHarness</code>、<code>TaskQueue</code></td>
+          </tr>
+          <tr>
+            <td>启动时 + 每次 <code>reload_skills</code></td>
+            <td><code>ReviewService._build_agentic_reviewer</code></td>
+            <td>把 15 个依赖装进 <code>AgenticReviewer</code>;扫描器列表在这里过滤掉了 <code>OpenAICompatibleReviewer</code>,并读出生效中的提示词与结构化配置</td>
+          </tr>
+          <tr>
+            <td>每个任务一次</td>
+            <td><code>ReviewService._create_task</code></td>
+            <td><code>task_id</code>(uuid4)、<code>tasks</code> 行、diff 载荷</td>
+          </tr>
+          <tr>
+            <td>每次执行一次</td>
+            <td><code>ReviewHarness.run</code></td>
+            <td>共享字典 <code>state</code>、线程本地的 <code>_ctx</code> 游标</td>
+          </tr>
+          <tr>
+            <td>每次审查一次</td>
+            <td><code>AgenticReviewer._review_with_context</code></td>
+            <td><code>ExecutionLedger</code>(记账与成本)、<code>RepositoryToolSuite</code>(工具)、<code>memory_context</code></td>
+          </tr>
+          <tr>
+            <td>每个角色每次运行</td>
+            <td><code>BoundedRole.__init__</code></td>
+            <td>该角色的系统提示词、token 与时间预算、按白名单过滤后的工具表</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>EvoAgent v0.3.0 · 依据仓库当前代码整理 · 函数级调用链,行号对应本次查阅时的 v0.3.0 代码</footer>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+<script>
+  (function () {
+    if (!window.mermaid) return;
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'loose',
+      theme: 'base',
+      fontFamily: "'IBM Plex Sans','Noto Sans SC',system-ui,sans-serif",
+      flowchart: { htmlLabels: true, useMaxWidth: false, nodeSpacing: 44, rankSpacing: 50, padding: 14 },
+      state: { useMaxWidth: false, nodeSpacing: 34, rankSpacing: 44 },
+      themeVariables: {
+        primaryColor: '#E9EFF6',
+        primaryTextColor: '#141C26',
+        primaryBorderColor: '#94A9BF',
+        secondaryColor: '#F5EAD8',
+        tertiaryColor: '#FFFFFF',
+        lineColor: '#5D6977',
+        fontSize: '13px'
+      }
+    });
+
+    var done = false;
+    function start() {
+      if (done) return;
+      done = true;
+      try { mermaid.run({ querySelector: 'pre.mermaid' }); } catch (e) { /* leave source visible */ }
+    }
+    // Mermaid measures label widths before drawing. If the CJK webfont has not
+    // loaded yet, the measurement uses a fallback and the boxes come out too
+    // narrow. Wait for fonts, with a hard timeout so the page never stays blank.
+    setTimeout(start, 1600);
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(start).catch(start);
+    } else {
+      start();
+    }
+  })();
+</script>
