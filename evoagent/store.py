@@ -11,7 +11,7 @@ from .models import ReviewReport, TaskState, TraceEvent
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
-
+# agent的数据访问层
 class TaskStore:
     def __init__(self, path: str):
         self.path = path
@@ -37,7 +37,7 @@ class TaskStore:
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )"""
-            )
+            )           # tasks表，存当前状态、仓库、输入元数据、最终报告、错误，用于任务列表、任务详情
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS failure_cases (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -78,7 +78,7 @@ class TaskStore:
                     created_at TEXT NOT NULL,
                     FOREIGN KEY(task_id) REFERENCES tasks(id)
                 )"""
-            )
+            )           # trace_events表，存状态变化记录，用于查看任务经历了哪些阶段
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS evaluation_cases (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -154,7 +154,7 @@ class TaskStore:
                     PRIMARY KEY(task_id, node),
                     FOREIGN KEY(task_id) REFERENCES tasks(id)
                 )"""
-            )
+            )           # checkpoints表，存节点或会话的执行状态快照，用于恢复时跳过已完成部分     
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS task_payloads (
                     task_id TEXT PRIMARY KEY,
@@ -162,7 +162,7 @@ class TaskStore:
                     created_at TEXT NOT NULL,
                     FOREIGN KEY(task_id) REFERENCES tasks(id)
                 )"""
-            )
+            )           # task_payloads表，存原始 diff，用于异步执行、恢复任务
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS agent_messages (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,

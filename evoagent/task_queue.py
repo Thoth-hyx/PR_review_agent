@@ -1,6 +1,5 @@
 """Durable task delivery with ACK, leases, retry backoff and a dead-letter queue."""
 import json
-import queue
 import socket
 import threading
 import time
@@ -30,7 +29,6 @@ class TaskQueue:
         self.on_dead_letter = on_dead_letter
         self._executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="evoagent-worker")
         self._redis = None
-        self._memory: queue.Queue = queue.Queue()
         self._memory_dlq = []
         self._lock = threading.Lock()
         self._stop = threading.Event()

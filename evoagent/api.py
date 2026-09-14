@@ -1,3 +1,4 @@
+# 负责 HTTP 接口：接收浏览器请求、验证身份、解析参数、选择处理方法、返回响应。
 import hashlib
 import json
 import mimetypes
@@ -47,7 +48,7 @@ class ApiHandler(BaseHTTPRequestHandler):
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "same-origin")
         self.end_headers()
-
+    # 读取 Authorization，验证用户身份及所需权限
     def _principal(self, permission: str = "read") -> Principal:
         if not self.settings.auth_required:
             return Principal(
@@ -63,12 +64,12 @@ class ApiHandler(BaseHTTPRequestHandler):
         except PermissionError as exc:
             self._send_json(401, {"error": str(exc)})
             return None
-
+    # 设置 HTTP 状态码、响应头，输出 JSON
     def _send_json(self, status: int, value: Dict[str, Any]) -> None:
         body = json.dumps(value, ensure_ascii=False, default=str).encode("utf-8")
         self._headers(status, "application/json; charset=utf-8", len(body))
         self.wfile.write(body)
-
+    # 设置 HTTP 状态码、响应头，输出 文本
     def _send_text(self, status: int, text: str, content_type: str = "text/plain; charset=utf-8") -> None:
         body = text.encode("utf-8")
         self._headers(status, content_type, len(body))
@@ -90,7 +91,7 @@ class ApiHandler(BaseHTTPRequestHandler):
             content_type += "; charset=utf-8"
         self._headers(200, content_type, len(body))
         self.wfile.write(body)
-
+    # 限制请求体大小，解析 UTF-8 JSON，要求根节点是对象
     def _read_body(self) -> bytes:
         try:
             length = int(self.headers.get("Content-Length", "0"))
@@ -110,7 +111,7 @@ class ApiHandler(BaseHTTPRequestHandler):
         if not isinstance(value, dict):
             raise ValueError("JSON root must be an object")
         return value
-
+    # 根据 URL 和请求方法选择处理逻辑
     def do_GET(self) -> None:
         parsed_url = urllib.parse.urlparse(self.path)
         path = parsed_url.path

@@ -1,4 +1,4 @@
-"""Product-backed agentic evaluation suite for labelled PRs."""
+"""面向已标注 PR 的产品级智能体评测套件"""
 from collections import Counter
 import json
 import random

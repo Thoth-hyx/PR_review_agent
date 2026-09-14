@@ -1,3 +1,4 @@
+# 负责业务组织：初始化组件、校验审查条件、创建任务、安排同步或异步执行，并处理反馈、修复等业务。
 import hashlib
 import uuid
 from typing import Any, Dict, Optional
@@ -8,7 +9,6 @@ from .config import Settings
 from .context_manager import ContextManager
 from .evolution import EvolutionEngine
 from .evolution_v2 import RootCauseEvolutionGenerator
-from .fixer import SafeFixer
 from .patching import SuggestionOnlyFixer, VerifiedPatchFixer
 from .github import GitHubAppAuthenticator, GitHubClient
 from .harness import ReviewHarness
@@ -59,14 +59,6 @@ class ReviewService:
             "reliability-review", ReliabilityRuleReviewer(),
             "1.0.0", "Reliability and observability review",
         )
-        if self.llm_config:
-            active = self.store.get_active_skill_version("llm-review")
-            self.registry.register(
-                "llm-review",
-                self._build_llm_reviewer(active["prompt"] if active else ""),
-                "1.0.0", "Context-aware AI code review via %s" % self.llm_config["provider"],
-            )
-        self.registry.reload()
         self.chat_client = (
             JsonChatClient(
                 str(self.llm_config["base_url"]), str(self.llm_config["api_key"]),
@@ -74,11 +66,7 @@ class ReviewService:
                 settings.timeout_seconds, dict(self.llm_config.get("headers") or {}),
             ) if self.llm_config else None
         )
-        self.reviewer = self._build_agentic_reviewer()
-        self.harness = ReviewHarness(
-            self.store, self.reviewer, settings.max_steps, settings.timeout_seconds,
-            observability=self.observability,
-        )
+        self.reload_skills()
         self.github = GitHubClient(settings.github_token)
         repair_verifier = RepairVerifier(
             settings.repair_test_command, settings.repair_verify_timeout_seconds
@@ -182,12 +170,6 @@ class ReviewService:
             self._active_agent_skills,
         )
 
-    def _run_review(
-        self, task_id: str, repository: str, pull_request: Optional[int],
-        diff: str, tenant_id: str,
-    ):
-        return self.harness.run(task_id, repository, pull_request, diff, tenant_id)
-
     def reload_skills(self) -> list:
         if self.llm_config:
             active = self.store.get_active_skill_version("llm-review")
@@ -196,8 +178,7 @@ class ReviewService:
                 self._build_llm_reviewer(active["prompt"] if active else ""),
                 "1.0.0", "Context-aware AI code review via %s" % self.llm_config["provider"],
             )
-        self.registry.reload()
-        skills = self.registry.list()
+        skills = self.registry.reload()
         self.reviewer = self._build_agentic_reviewer()
         self.harness = ReviewHarness(
             self.store, self.reviewer, self.settings.max_steps, self.settings.timeout_seconds,
@@ -237,7 +218,7 @@ class ReviewService:
     def _require_agentic_model(self) -> None:
         if self.chat_client is None:
             raise RuntimeError("agentic review requires a configured model")
-
+    # 创建任务，保存原始diff
     def _create_task(
         self, repository: str, diff: str, pull_request: Optional[int], source: str,
         tenant_id: str = "default", repository_root: str = "",
@@ -271,7 +252,7 @@ class ReviewService:
             "mode": RunMode.AGENTIC.value,
         }, tenant_id)
         return task_id
-
+    # 同步业务入口：校验diff、模型、仓库权限、角色和skills
     def create_review(
         self, repository: str, diff: str, pull_request: Optional[int] = None,
         source: str = "api", tenant_id: str = "default", mode: str = "",
@@ -294,7 +275,7 @@ class ReviewService:
                 "review", task_id, task_id=task_id, tenant_id=tenant_id,
                 repository=repository,
             ), metrics.timer("review_duration"):
-                report = self._run_review(
+                report = self.harness.run(
                     task_id, repository, pull_request, diff, tenant_id
                 )
             metrics.inc("reviews_total")
@@ -309,7 +290,7 @@ class ReviewService:
             self.releases.observe(tenant_id, "llm-review", True, lane)
             self.alerts.evaluate(tenant_id)
             raise
-
+    # 异步业务入口：先返回任务 ID，队列随后调用同一个 Harness
     def enqueue_review(
         self, repository: str, diff: str, pull_request: Optional[int] = None,
         source: str = "api", github_issue_url: str = "", installation_id: Optional[int] = None,
@@ -324,10 +305,12 @@ class ReviewService:
         self._validate_enabled_agents(enabled_agents)
         self._validate_enabled_skills(enabled_skills, tenant_id)
         self._authorize_repository(tenant_id, repository)
+        # 创建任务并保存原始 diff
         task_id = self._create_task(
             repository, diff, pull_request, source, tenant_id,
             repository_root, enabled_agents, enabled_skills,
         )
+        # 将任务提交到队列，稍后由队列处理器调用 _process_queued
         self.queue.submit({
             "task_id": task_id, "repository": repository, "pull_request": pull_request,
             "github_issue_url": github_issue_url, "installation_id": installation_id,
@@ -335,7 +318,7 @@ class ReviewService:
         }, message_id=task_id)
         metrics.inc("reviews_enqueued_total")
         return {"task_id": task_id, "state": "PENDING", "queue": self.queue.backend}
-
+    # 队列处理器：从队列中取出任务，获取 diff 并调用 Harness 执行审查
     def _process_queued(self, payload: Dict[str, Any]) -> None:
         task_id = payload["task_id"]
         task = self.store.get(task_id)
@@ -363,7 +346,7 @@ class ReviewService:
             with self.observability.span(
                 "review.async", task_id, task_id=task_id, tenant_id=tenant_id,
             ), metrics.timer("review_duration"):
-                report = self._run_review(
+                report = self.harness.run(
                     task_id, payload["repository"], payload.get("pull_request"), diff,
                     tenant_id,
                 )

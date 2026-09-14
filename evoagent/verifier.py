@@ -1,4 +1,4 @@
-"""Compilation and test gates for generated repairs."""
+"""验证补丁是否满足当前检查要求."""
 import os
 import shlex
 import subprocess

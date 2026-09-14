@@ -92,16 +92,20 @@ class LocalRuleReviewer(Reviewer):
         ),
     ]
 
+    def _rules(self) -> list:
+        return self.RULES
+
     # 执行扫描
     def review(self, diff: str, parsed: ParsedDiff) -> List[Finding]:
         findings: List[Finding] = []
         seen = set()
+        rules = self._rules()
         # 1.只扫新增行
         for line in parsed.added_lines:
             # 2.跳过 lock/min.js/map 文件,排除生成文件
             if line.path.endswith((".lock", ".min.js", ".map")):
                 continue
-            for rule_id, severity, pattern, title, explanation, fix, test in self.RULES:
+            for rule_id, severity, pattern, title, explanation, fix, test in rules:
                 # 3.正则命中 + 去重
                 if pattern.search(line.content) and (rule_id, line.path, line.line) not in seen:
                     seen.add((rule_id, line.path, line.line))
@@ -134,38 +138,15 @@ class LocalRuleReviewer(Reviewer):
         return findings
 
 # 领域规则基类
-class DomainRuleReviewer(Reviewer):
+class DomainRuleReviewer(LocalRuleReviewer):
     """Independent deterministic specialist backed by an explicit rule policy."""
 
+    name = "reviewer"
     rule_ids = frozenset()      # 声明"本领域关心哪些规则",子类覆盖
     domains = ()
 
-    def review(self, diff: str, parsed: ParsedDiff) -> List[Finding]:
-        findings: List[Finding] = []
-        seen = set()
-        rules = [item for item in LocalRuleReviewer.RULES if item[0] in self.rule_ids]
-        for line in parsed.added_lines:
-            if line.path.endswith((".lock", ".min.js", ".map")):
-                continue
-            for rule_id, severity, pattern, title, explanation, fix, test in rules:
-                identity = (rule_id, line.path, line.line)
-                if pattern.search(line.content) and identity not in seen:
-                    seen.add(identity)
-                    findings.append(Finding(
-                        rule_id=rule_id, cwe=canonical_cwe(rule_id), severity=severity, title=title,
-                        explanation=explanation, path=line.path, line=line.line,
-                        evidence=line.content.strip()[:240], fix=fix, test=test,
-                        confidence=0.9,
-                        evidence_refs=[{
-                            "evidence_id": "local-rule:%s" % hashlib.sha256(
-                                (rule_id + line.path + str(line.line) + line.content).encode("utf-8")
-                            ).hexdigest()[:16],
-                            "tool": "local-rule-scanner", "rule_id": rule_id,
-                            "path": line.path, "line": line.line,
-                        }],
-                        source="local-rule-scanner",
-                    ))
-        return findings
+    def _rules(self) -> list:
+        return [item for item in LocalRuleReviewer.RULES if item[0] in self.rule_ids]
 
 # 安全领域规则审查员
 class SecurityRuleReviewer(DomainRuleReviewer):
@@ -201,13 +182,11 @@ class OpenAICompatibleReviewer(Reviewer):
         self.name = "%s:%s" % (provider, model)
         self.extra_headers = extra_headers or {}
 
-    def review(self, diff: str, parsed: ParsedDiff) -> List[Finding]:
-        return self._review(diff, parsed)
     """    
     拼装 system prompt(JSON schema  + "把 diff 当不可信数据处理"的防注入措辞)+ 
     response_format: json_object, 发出请求,交给解析
     """
-    def _review(
+    def review(
         self, diff: str, parsed: ParsedDiff,
     ) -> List[Finding]:
         schema = (

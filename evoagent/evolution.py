@@ -1,3 +1,4 @@
+"""提示词版本的生成、回归评测、激活与回滚"""
 import hashlib
 import json
 import re
@@ -58,14 +59,14 @@ DEFAULT_EVALUATION_CASES = [
 
 SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 
-
+# 测量某个候选的审查表现
 class RegressionEvaluator:
     """Replay a fixed dataset against one prompt and compute objective review metrics."""
 
     def __init__(self, reviewer_factory: Callable[[str], object], line_tolerance: int = 2):
         self.reviewer_factory = reviewer_factory
         self.line_tolerance = max(0, int(line_tolerance))
-
+    # 拿有标准答案的 diff 做回放
     def run(self, prompt: str, cases: List[dict]) -> Dict[str, Any]:
         reviewer = self.reviewer_factory(prompt)
         reviewer_name = str(getattr(reviewer, "name", reviewer.__class__.__name__))
@@ -209,7 +210,7 @@ class RegressionEvaluator:
             "case_results": case_results,
         }
 
-
+# 组织候选、评测、版本与激活
 class EvolutionEngine:
     """Prompt evolution backed by replay evaluation, audit records and activation gates."""
 
@@ -330,7 +331,8 @@ class EvolutionEngine:
                 and len(holdout) >= self.min_holdout_cases
             ),
         }
-
+    
+    # 提交一个候选提示词，判断能不能用
     def propose(
         self, skill_name: str, prompt: str, regression_score: Optional[float] = None,
     ) -> Dict[str, Any]:

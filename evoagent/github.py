@@ -1,3 +1,4 @@
+"""GitHub 通信与认证"""
 import hashlib
 import hmac
 import json
@@ -11,14 +12,14 @@ import time
 from datetime import datetime, timezone
 from typing import Dict
 
-
+# 检查webhook请求签名
 def verify_signature(secret: str, body: bytes, signature: str) -> bool:
     if not secret or not signature.startswith("sha256="):
         return False
     expected = "sha256=" + hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, signature)
+    return hmac.compare_digest(expected, signature)     # 比较签名
 
-
+# 读取和写入github
 class GitHubClient:
     def __init__(self, token: str, timeout: int = 30, max_attempts: int = 4):
         self.token = token

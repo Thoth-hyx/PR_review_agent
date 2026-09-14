@@ -46,7 +46,7 @@ function formatJson(value) {
 }
 
 async function api(path, options = {}) {
-  const headers = { ...(options.headers || {}) };
+  const headers = { ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.headers || {}) };
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
   const response = await fetch(path, { ...options, headers });
   const contentType = response.headers.get("content-type") || "";
@@ -100,7 +100,7 @@ function show(view, updateHash = true) {
   });
   $(`#view-${view}`).classList.add("active");
   $("#page-title").textContent = titles[view];
-  document.title = `${titles[view]} · EvoAgent`;
+  document.title = `${titles[view]} · AI Review`;
   if (updateHash) history.replaceState(null, "", `#${view}`);
 
   if (view === "tasks") loadTasks();
@@ -365,7 +365,6 @@ async function loadFailures() {
   }
 }
 
-let reviewRun = 0;
 let reviewBusy = false;
 const submittedReviews = new Map();
 
@@ -419,7 +418,6 @@ function renderDiffReport(root, task, retry = null) {
 async function submitDiffReview(body) {
   if (reviewBusy) return;
   reviewBusy = true;
-  const run = ++reviewRun;
   const output = $('#review-result');
   const button = $('button[type="submit"]', $('#review-form'));
   show('review');
@@ -427,10 +425,10 @@ async function submitDiffReview(body) {
   setButtonBusy(button, true, '审查中…');
   let taskId;
   try {
-    const result = await api('/v1/reviews?async=true', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const result = await api('/v1/reviews?async=true', {method:'POST', body:JSON.stringify(body)});
     taskId = result.task_id;
     submittedReviews.set(taskId, {...body});
-    while (run === reviewRun) {
+    while (true) {
       const task = await api(`/v1/tasks/${encodeURIComponent(taskId)}`);
       renderDiffReport(output, task, () => submitDiffReview({...body}));
       if (['SUCCESS','FAILED','CANCELLED'].includes(task.state)) break;
@@ -459,11 +457,10 @@ $("#create-fix").addEventListener("click", async () => {
   try {
     const data = await api(`/v1/tasks/${encodeURIComponent(selectedTask)}/fix`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: "{}",
     });
     $("#task-report").textContent = formatJson(data);
-    toast("修复分支已创建");
+    toast(data.branch ? "修复分支已创建" : data.status === "blocked" ? "修复未通过验证，未创建分支" : "已生成修复建议，未创建分支");
   } catch (error) {
     toast(error.message);
   } finally {
@@ -503,7 +500,6 @@ $("#feedback-form").addEventListener("submit", async (event) => {
   try {
     const data = await api(`/v1/tasks/${encodeURIComponent(selectedTask)}/feedback`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         category,
         finding: Object.keys(finding).length ? finding : null,
@@ -529,7 +525,6 @@ $("#reload-skills").addEventListener("click", async () => {
   try {
     await api("/v1/skills/reload", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: "{}",
     });
     await loadSkills();
@@ -550,12 +545,11 @@ $("#evolution-form").addEventListener("submit", async (event) => {
   try {
     const data = await api("/v1/evolution/propose", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ skill_name: values.get("skill_name"), prompt: values.get("prompt") }),
     });
     $("#evolution-result").classList.remove("empty");
     $("#evolution-result").textContent = formatJson(data);
-    toast("新旧版本回放评测已完成");
+    toast(data.decision === "deferred" ? "候选已返回，暂未执行评测" : "候选处理已完成");
     loadFailures();
   } catch (error) {
     toast(error.message);
@@ -570,12 +564,11 @@ $("#auto-evolve").addEventListener("click", async () => {
   try {
     const data = await api("/v1/evolution/auto", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ skill_name: "llm-review" }),
     });
     $("#evolution-result").classList.remove("empty");
     $("#evolution-result").textContent = formatJson(data);
-    toast("反馈候选评测已完成");
+    toast(data.decision === "deferred" ? "候选已返回，暂未执行评测" : "反馈候选处理已完成");
     loadFailures();
   } catch (error) {
     toast(error.message);
@@ -603,7 +596,6 @@ $("#login-form").addEventListener("submit", async (event) => {
   try {
     const data = await api("/v1/auth/login", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         username: values.get("username"),
         password: values.get("password"),

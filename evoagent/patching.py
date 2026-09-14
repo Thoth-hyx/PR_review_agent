@@ -1,4 +1,4 @@
-"""LLM unified-patch generation with structural and sandbox verification."""
+"""LLM 统一补丁生成，结合结构与沙箱验证"""
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json

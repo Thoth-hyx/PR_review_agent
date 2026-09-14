@@ -1,4 +1,4 @@
-"""Replay-gated evolution of standard Agent Skill ``SKILL.md`` packages."""
+"""标准 Agent Skill SKILL.md 包的回放门控演化"""
 import hashlib
 import json
 import re
@@ -247,9 +247,6 @@ class SkillEvolutionEngine:
             >= float(baseline.get(key, 0)) for key in protected
         )
 
-    def _non_regressing(self, candidate: dict, baseline: dict) -> bool:
-        return self.metrics_non_regressing(candidate, baseline)
-
     def status(self, skill_name: str = "evolved-review", tenant_id: str = "default") -> dict:
         validation = self.store.list_evaluation_cases("validation", True, self.max_cases)
         holdout = self.store.list_evaluation_cases("holdout", True, self.max_cases)
@@ -319,8 +316,8 @@ class SkillEvolutionEngine:
                 or baseline_holdout["errors"] or candidate_holdout["errors"]
             )
             improved = candidate_metrics["score"] >= baseline_metrics["score"] + self.min_improvement
-            validation_safe = self._non_regressing(candidate_metrics, baseline_metrics)
-            holdout_safe = self._non_regressing(candidate_holdout, baseline_holdout)
+            validation_safe = self.metrics_non_regressing(candidate_metrics, baseline_metrics)
+            holdout_safe = self.metrics_non_regressing(candidate_holdout, baseline_holdout)
             gates.update({
                 "evaluation_success": no_errors, "validation_improvement": improved,
                 "validation_non_regression": validation_safe,

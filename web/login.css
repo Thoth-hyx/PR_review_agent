@@ -5,8 +5,7 @@
   display: grid;
   place-items: center;
   padding: 16px;
-  background: rgba(7, 8, 10, .88);
-  backdrop-filter: blur(14px);
+  background: var(--bg-soft);
 }
 
 .login-card {
@@ -14,8 +13,8 @@
   padding: 34px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-panel);
-  background: #14181e;
-  box-shadow: 0 30px 100px rgba(0, 0, 0, .52);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
 }
 
 .login-brand {
@@ -54,8 +53,8 @@
 .login-error {
   min-height: 18px;
   margin: 13px 0 0;
-  color: #ffabab;
-  font-size: 11px;
+  color: var(--red);
+  font-size: 12px;
 }
 
 @media (max-width: 480px) {
