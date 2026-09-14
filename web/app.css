@@ -820,3 +820,31 @@ textarea { min-height: 150px; resize: vertical; font: 11px/1.7 "Cascadia Code", 
     transition-duration: .01ms !important;
   }
 }
+
+/* Diff-focused review results */
+#view-review .form-layout { display:block; }
+#review-result { margin-top:24px; padding:24px; }
+.diff-report { min-width:0; white-space:normal; }
+.diff-heading,.diff-summary,.finding-title,.finding-filters { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.diff-heading { justify-content:space-between; margin-bottom:18px; }
+.diff-heading h3,.finding-title h4 { margin:0; }
+.diff-summary { padding:16px; background:#f1f5f9; border-radius:12px; color:#172033; }
+.finding-filters { margin:20px 0; }
+.finding-filters button,.copy-toggle { padding:8px 12px; border:1px solid #cbd5e1; border-radius:8px; background:white; color:#334155; cursor:pointer; }
+.finding-filters button[aria-pressed="true"] { background:#172033; color:white; }
+.finding-card { border:1px solid #dbe2ea; border-radius:14px; padding:20px; margin:16px 0; overflow-wrap:anywhere; }
+.finding-title { align-items:flex-start; }
+.finding-title h4 { flex:1; min-width:160px; line-height:1.6; }
+.severity { padding:4px 10px; border-radius:6px; background:#edf2f7; font-size:13px; }
+.severity-critical,.severity-high { background:#fee2e2; color:#991b1b; }
+.severity-medium { background:#fef3c7; color:#92400e; }
+.severity-low { background:#dbeafe; color:#1e40af; }
+.finding-location { font-family:monospace; color:#64748b; }
+.finding-copy p { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; white-space:pre-wrap; line-height:1.7; }
+.finding-copy.expanded p { display:block; }
+.diff-report details { margin-top:18px; }
+.diff-report summary { cursor:pointer; padding:10px 0; font-weight:600; }
+.diff-report pre { max-height:420px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; padding:16px; background:#f1f5f9; color:#172033; border-radius:10px; }
+.review-warning { background:#fff7ed; color:#9a3412; border-left:4px solid #f97316; padding:16px; overflow-wrap:anywhere; }
+.report-empty { padding:24px 0; color:#64748b; }
+@media(max-width:600px) { #review-result,.finding-card { padding:14px; } .diff-summary { align-items:flex-start; flex-direction:column; } }

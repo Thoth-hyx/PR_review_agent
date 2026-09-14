@@ -10,7 +10,7 @@ import time
 from typing import Any, Dict, Iterable, List, Optional, Set
 
 from .diff_parser import ParsedDiff
-from .context_manager import ContextManager
+from .context_manager import ContextManager, estimate_tokens
 from .gates import FindingGate
 from .finding_identity import canonical_identity
 from .llm import JsonChatClient, ModelResponseError
@@ -208,9 +208,11 @@ class BoundedRole:
             self.name, "started", token_budget=self.token_budget,
             time_budget_seconds=self.time_budget, tools=tools.names(),
         )
+        last_response_error = ""
         correction_used = False
         for step in range(1, self.max_steps + 1):
             correction = ""
+            active_tools = tools if step < self.max_steps else ToolRegistry()
             while True:
                 elapsed = time.monotonic() - started
                 used = sum(
@@ -220,8 +222,27 @@ class BoundedRole:
                 remaining = self.token_budget - used
                 if elapsed >= self.time_budget or remaining <= 0:
                     ledger.trace(self.name, "budget_exhausted", step=step, tokens_used=used)
-                    raise RuntimeBudgetExceeded("%s budget exhausted" % self.name)
-                prompt = self.prompt + correction
+                    raise RuntimeBudgetExceeded(
+                        "%s budget exhausted: used=%s limit=%s elapsed=%.1fs; last_response_error=%s"
+                        % (self.name, used, self.token_budget, elapsed, last_response_error or "none")
+                    )   
+                prompt = self.prompt + correction             
+                prompt += "\nKeep every field concise; avoid repeated explanations. Return complete JSON within the output limit."
+                prompt += """
+                        输出语言要求：
+                        1. 所有自然语言描述使用简体中文，包括 title、explanation、fix、test、
+                        reason、reasoning_summary、resolution_summary、objective、guidance
+                        以及 objections、required_evidence 中的描述。
+                        2. JSON 字段名保持协议原样，不得翻译。
+                        3. 枚举值和标识符保持原样，包括 action、severity、risk_level、
+                        worker、tool、rule_id、CWE 编号和技能名称。
+                        例如 final、tool、critical、high、medium、low、normal 必须保持英文。
+                        4. 文件路径、函数名、变量名、代码片段和命令保持原样。
+                        evidence 中的代码证据必须忠实引用，不得翻译或改写。
+                        5. 描述简洁，避免重复。仍然只返回符合当前阶段协议的 JSON 对象。
+                        """
+                if not active_tools.names():
+                    prompt += "\nNo tools remain in this run. Return the required final JSON now using available evidence; do not invent evidence."                
                 output_allowance = min(remaining, self.context_manager.output_token_limit(
                     prompt, min(self.max_output_tokens, remaining)
                 ))
@@ -236,7 +257,7 @@ class BoundedRole:
                     except Exception as exc:
                         ledger.trace(self.name, "working_memory_unavailable", error=str(exc)[:500])
                 managed, stats = self.context_manager.build_managed_context(
-                    current_context, tools.catalog(), observations, remaining,
+                    current_context, active_tools.catalog(), observations, remaining,
                     max(0, int(self.time_budget - elapsed)),
                     system_prompt=prompt, max_output_tokens=output_allowance,
                 )
@@ -252,6 +273,14 @@ class BoundedRole:
                 remaining_seconds = self.time_budget - (time.monotonic() - started)
                 if remaining_seconds <= 0:
                     raise RuntimeBudgetExceeded("%s time budget exhausted" % self.name)
+                estimated_input = estimate_tokens(prompt) + estimate_tokens(managed)
+                output_allowance = min(output_allowance, remaining - estimated_input)
+                if output_allowance < 256:
+                    raise RuntimeBudgetExceeded(
+                        "%s insufficient token budget: remaining=%s estimated_input=%s; last_response_error=%s"
+                        % (self.name, remaining, estimated_input, last_response_error or "none")
+                    )
+
                 options = {"max_tokens": output_allowance}
                 if isinstance(self.client, JsonChatClient):
                     options["timeout_seconds"] = remaining_seconds
@@ -263,9 +292,10 @@ class BoundedRole:
                     )
                     if time.monotonic() - started >= self.time_budget:
                         raise RuntimeBudgetExceeded("%s time budget exhausted" % self.name)
-                    kind = self._validate_action(action, tools, task)
+                    kind = self._validate_action(action, active_tools, task)
                     break
                 except ModelResponseError as exc:
+                    last_response_error = str(exc)
                     ledger.trace(self.name, "response_invalid", step=step, phase=phase,
                                  error=str(exc), will_retry=not correction_used)
                     if correction_used:
@@ -714,7 +744,9 @@ class AgenticReviewer(Reviewer):
                 key = revision["run_id"]
                 result = session["worker_results"].pop(key)
                 session["revision_results"][key] = result
-                session["worker_results"][revision["assignment_id"]] = result
+                previous = session["worker_results"].get(revision["assignment_id"], {})
+                if result["status"] == "completed" or previous.get("status") != "completed":
+                    session["worker_results"][revision["assignment_id"]] = result
                 ledger.trace(
                     "lead-session", "revision_completed",
                     assignment_id=revision["assignment_id"],
@@ -923,7 +955,7 @@ class AgenticReviewer(Reviewer):
             working_memory_supplier=working_memory_supplier,
             observation_sink=observation_sink,
         )       # 构造BoundedRole对象
-        context = {"phase": phase, **payload}
+        context = {"phase": phase, **payload, "repository_available": suite.repository_available}
         if not allow_tools:
             context["execution_policy"] = (
                 "This is a one-shot phase with no tools. Return the required final JSON now; "
@@ -1030,6 +1062,8 @@ class AgenticReviewer(Reviewer):
                 observation_sink=observation_sink,
             )
             context = {
+                "repository_available": suite.repository_available,
+                "review_scope": "repository" if suite.repository_available else "diff-only",
                 "lead_assignment": assignment,
                 "lead_feedback": assignment.get("lead_feedback", ""),
                 **self._model_diff(
@@ -1047,6 +1081,9 @@ class AgenticReviewer(Reviewer):
                         "do not request a tool. "
                     ) if not allow_tools else ""
                 ) + (
+                    "When repository_available is false, use only the supplied diff and available diff tools. "
+                    "Report directly evidenced defects; state missing context without inventing it. "
+                    "Keep findings concise to avoid truncation. "
                     "Report only to the Lead. Return final findings with exact changed-line "
                     "evidence and address every required_evidence item."
                 ),

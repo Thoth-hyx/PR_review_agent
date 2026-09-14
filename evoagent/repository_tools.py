@@ -405,7 +405,9 @@ class RepositoryToolSuite:
                 self.run_repository_checks,
             ),
         }
-        selected = allowed or set(specs)
+        selected = set(specs) if allowed is None else set(allowed)
+        if not self.repository_available:
+            selected.intersection_update({"search_diff", "changed_line"})
         tools = []
         for name in sorted(selected.intersection(specs)):
             description, schema, handler = specs[name]

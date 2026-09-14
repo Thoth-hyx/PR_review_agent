@@ -104,7 +104,7 @@
 
       <section class="view" id="view-review" aria-labelledby="page-title">
         <div class="section-heading">
-          <div><h2>提交 Pull Request Diff</h2><p>选择规则、单模型或真实多模型模式，报告会披露实际调用成本。</p></div>
+          <div><h2>提交 Pull Request Diff</h2><p>查看这次修改的问题、代码依据和修复建议。</p></div>
         </div>
         <div class="form-layout">
           <article class="panel form-panel">
@@ -126,22 +126,14 @@
                 <textarea name="diff" rows="15" spellcheck="false" required placeholder="--- a/app.py&#10;+++ b/app.py&#10;@@ -1 +1 @@&#10;-old_value&#10;+new_value"></textarea>
               </label>
               <div class="form-footer">
-                <label class="check"><input name="async" type="checkbox" checked><span>放入异步队列</span></label>
+                <span class="muted">提交后自动更新审查进度</span>
                 <button class="button" type="submit">开始代码审查</button>
               </div>
             </form>
           </article>
-          <aside class="panel strategy-panel">
-            <h3>执行策略</h3>
-            <ol>
-              <li><b>01</b><span><strong>解析变更</strong><small>只定位新增代码与新文件行号</small></span></li>
-              <li><b>02</b><span><strong>按模式执行</strong><small>Scanner 或 LLM Agent 依据实际配置运行</small></span></li>
-              <li><b>03</b><span><strong>质量门禁</strong><small>过滤无定位、无修复方案的结论</small></span></li>
-              <li><b>04</b><span><strong>经验沉淀</strong><small>反馈自动进入失败案例库</small></span></li>
-            </ol>
-            <div id="review-result" class="result empty" aria-live="polite">审查结果将在这里显示</div>
-          </aside>
+
         </div>
+        <article id="review-result" class="panel diff-report" aria-live="polite">提交 diff 后，这里将展示审查结论和具体问题。</article>
       </section>
 
       <section class="view" id="view-tasks" aria-labelledby="page-title">
@@ -160,7 +152,7 @@
               <h3>任务报告</h3>
               <button class="button danger hidden" id="create-fix">创建修复分支</button>
             </div>
-            <pre id="task-report">请选择一个已完成的任务。</pre>
+            <div id="task-report" class="diff-report">请选择一个任务查看审查报告。</div>
             <section class="feedback-panel hidden" id="feedback-panel" aria-labelledby="feedback-title">
               <div class="feedback-head">
                 <div>
@@ -279,6 +271,6 @@
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="/assets/app.js?v=20260805.6"></script>
+  <script src="/assets/app.js?v=20260914.1"></script>
 </body>
 </html>

@@ -246,7 +246,7 @@ async function openTask(id) {
     const task = await api(`/v1/tasks/${encodeURIComponent(id)}`);
     selectedTask = id;
     selectedTaskData = task;
-    $("#task-report").textContent = formatJson(task);
+    renderDiffReport($("#task-report"), task);
     $("#create-fix").classList.toggle("hidden", !(task.report && task.pull_request));
     const feedbackReady = task.state === "SUCCESS" && task.report;
     $("#feedback-panel").classList.toggle("hidden", !feedbackReady);
@@ -365,32 +365,91 @@ async function loadFailures() {
   }
 }
 
-$("#review-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const button = $('button[type="submit"]', form);
-  const values = new FormData(form);
-  const body = { repository: values.get("repository"), diff: values.get("diff"), mode: values.get("mode") };
-  if (values.get("pull_request")) body.pull_request = Number(values.get("pull_request"));
-  const asyncQuery = values.get("async") ? "?async=true" : "";
-  const output = $("#review-result");
-  output.classList.remove("empty");
-  output.textContent = "正在提交审查任务…";
-  setButtonBusy(button, true, "正在提交…");
+let reviewRun = 0;
+let reviewBusy = false;
+const submittedReviews = new Map();
+
+function renderDiffReport(root, task, retry = null) {
+  const report = task.report;
+  const terminal = ["SUCCESS", "FAILED", "CANCELLED"].includes(task.state);
+  const workers = [...(report?.collaboration?.worker_results || []), ...(report?.collaboration?.revision_results || [])];
+  const incomplete = report?.execution?.review_completeness?.status === "incomplete" || workers.some(w => w.status !== "completed");
+  const failed = task.state === "FAILED" || task.state === "CANCELLED";
+  const findings = report?.findings || [];
+  const labels = {critical:"严重", high:"高", medium:"中", low:"低", unknown:"未确定"};
+  const risk = failed || !report || (incomplete && report.risk !== "high") ? "unknown" : report.risk;
+  const status = failed ? stateLabels[task.state] : !terminal ? (stateLabels[task.state] || "处理中") : incomplete ? "审查不完整" : !report ? "报告不可用" : "审查已完成";
+  const retryAction = retry || (submittedReviews.has(task.id) ? () => submitDiffReview(submittedReviews.get(task.id)) : null);
+  root.innerHTML = `<div class="diff-heading"><h3>Diff 审查报告</h3>${terminal && retryAction ? '<button type="button" class="button retry-review">重新审查</button>' : ''}</div>
+    <div class="diff-summary"><strong>风险：${escapeHtml(labels[risk] || "未确定")}</strong><span>${escapeHtml(status)}</span><span>${report ? `${report.files_reviewed?.length || 0} 个文件 · ${findings.length} 个问题` : '正在分析提交的修改'}</span></div>
+    <p class="muted">审查范围：${report?.execution?.repository_context?.available ? '提交的 diff 及可用仓库上下文' : '提交的 diff'}</p>
+    ${failed || incomplete ? `<p class="review-warning" role="alert">${escapeHtml(task.error || '部分审查未完成，以下问题不代表完整结论。')} ${escapeHtml([...new Set(workers.filter(w => w.error).map(w => w.error))].join('；'))}</p>` : ''}
+    <div class="finding-filters" role="group" aria-label="按问题等级筛选"></div><div class="finding-list"></div>
+    <details class="technical-details"><summary>技术详情 · 完整任务 JSON</summary><pre>${escapeHtml(formatJson(task))}</pre></details>`;
+  const list = $(".finding-list", root);
+  const draw = (level) => {
+    const visible = findings.filter(f => level === "all" || f.severity === level);
+    list.innerHTML = visible.map(f => `<article class="finding-card">
+      <div class="finding-title"><span class="severity severity-${Object.hasOwn(labels, f.severity) ? f.severity : 'unknown'}">${escapeHtml(labels[f.severity] || f.severity)}</span><h4>${escapeHtml(f.title)}</h4></div>
+      <p class="finding-location">${escapeHtml(f.path)}:${escapeHtml(f.line)}</p>
+      <div class="finding-copy"><strong>原因</strong><p>${escapeHtml(f.explanation || '未提供说明')}</p><strong>修复建议</strong><p>${escapeHtml(f.fix || '未提供修复建议')}</p></div>
+      <button type="button" class="copy-toggle" aria-expanded="false">展开原因与建议</button>
+      <details><summary>代码证据与验证方法</summary><pre>${escapeHtml(f.evidence || '未提供代码证据')}</pre><strong>验证方法</strong><p>${escapeHtml(f.test || '未提供验证方法')}</p></details>
+    </article>`).join('') || `<p class="report-empty">${findings.length ? '此等级没有问题。' : !terminal ? '审查进行中，完成后自动更新。' : failed || incomplete || !report ? '暂时没有可发布的问题，不能据此判断修改安全。' : '本次审查未发现可报告的问题。'}</p>`;
+    $$(".copy-toggle", list).forEach(button => button.addEventListener("click", () => {
+      const expanded = button.getAttribute("aria-expanded") !== "true";
+      button.setAttribute("aria-expanded", String(expanded));
+      button.previousElementSibling.classList.toggle("expanded", expanded);
+      button.textContent = expanded ? "收起原因与建议" : "展开原因与建议";
+    }));
+  };
+  if (findings.length) {
+    const filters = $(".finding-filters", root);
+    filters.innerHTML = ['all', 'critical', 'high', 'medium', 'low'].map(level => `<button type="button" data-level="${level}" aria-pressed="${level === 'all'}">${level === 'all' ? '全部' : labels[level]} (${findings.filter(f => level === 'all' || f.severity === level).length})</button>`).join('');
+    $$('button', filters).forEach(button => button.addEventListener('click', () => {
+      $$('button', filters).forEach(b => b.setAttribute('aria-pressed', String(b === button)));
+      draw(button.dataset.level);
+    }));
+  }
+  draw('all');
+  const retryButton = $('.retry-review', root);
+  if (retryButton) retryButton.addEventListener('click', () => { if (!reviewBusy) retryAction(); });
+}
+
+async function submitDiffReview(body) {
+  if (reviewBusy) return;
+  reviewBusy = true;
+  const run = ++reviewRun;
+  const output = $('#review-result');
+  const button = $('button[type="submit"]', $('#review-form'));
+  show('review');
+  output.textContent = '正在提交审查任务…';
+  setButtonBusy(button, true, '审查中…');
+  let taskId;
   try {
-    const data = await api(`/v1/reviews${asyncQuery}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    output.textContent = formatJson(data);
-    toast("审查任务已成功提交");
-    loadDashboard();
+    const result = await api('/v1/reviews?async=true', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    taskId = result.task_id;
+    submittedReviews.set(taskId, {...body});
+    while (run === reviewRun) {
+      const task = await api(`/v1/tasks/${encodeURIComponent(taskId)}`);
+      renderDiffReport(output, task, () => submitDiffReview({...body}));
+      if (['SUCCESS','FAILED','CANCELLED'].includes(task.state)) break;
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
   } catch (error) {
-    output.textContent = error.message;
+    output.textContent = `无法获取审查结果：${error.message}${taskId ? '。任务可能仍在运行，请到任务中心查看，避免重复提交。' : ''}`;
   } finally {
+    reviewBusy = false;
     setButtonBusy(button, false);
   }
+}
+
+$('#review-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const values = new FormData(event.currentTarget);
+  const body = {repository:values.get('repository'), diff:values.get('diff'), mode:values.get('mode')};
+  if (values.get('pull_request')) body.pull_request = Number(values.get('pull_request'));
+  submitDiffReview(body);
 });
 
 $("#create-fix").addEventListener("click", async () => {

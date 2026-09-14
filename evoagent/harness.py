@@ -179,9 +179,27 @@ class ReviewHarness:
         else:
             collaboration = reviewer_summary or self._persisted_collaboration_summary(state["task_id"])
             run_mode, components, execution = {}, [], {}
+
+        failures = [
+            item for item in (collaboration.get("worker_results", [])
+                              + collaboration.get("revision_results", []))
+            if item.get("status") != "completed"
+        ]
+        execution["review_completeness"] = {
+            "status": "incomplete" if failures else "complete",
+            "failed_runs": sorted({str(item.get("run_id", "")) for item in failures}),
+        }
+        summary = self._summary(findings, len(parsed.files), risk)
+        if failures:
+            risk = risk if risk == "high" else "unknown"
+            summary = (
+                "审查不完整：部分审查角色执行失败，已发布 %d 个问题。"
+                "请查看技术详情中的执行记录。"
+            ) % len(findings)
+
         report = ReviewReport(
             repository=state["repository"], pull_request=state.get("pull_request"),
-            summary=self._summary(findings, len(parsed.files), risk), risk=risk,
+            summary=summary, risk=risk,
             findings=findings, files_reviewed=parsed.files, reviewer=self.reviewer.name,
             collaboration=collaboration,
             run_mode=run_mode, components=components, execution=execution,
@@ -262,9 +280,15 @@ class ReviewHarness:
     @staticmethod
     def _summary(findings, file_count: int, risk: str) -> str:
         if not findings:
-            return "Reviewed %d file(s); no actionable issue was detected in added lines." % file_count
-        return "Reviewed %d file(s); found %d actionable issue(s). Overall risk: %s." % (
-            file_count, len(findings), risk,
+            return "已审查 %d 个文件，本次未发现可报告的问题。" % file_count
+        risk_label = {
+        "high": "高",
+        "medium": "中",
+        "low": "低",
+        "unknown": "未确定",
+            }.get(risk, "未确定")
+        return "已审查 %d 个文件，发现 %d 个问题，整体风险：%s。" % (
+            file_count, len(findings), risk_label,
         )
 
     def _persisted_collaboration_summary(self, task_id: str) -> Dict[str, Any]:
