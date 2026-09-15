@@ -6,7 +6,7 @@ const titles = {
   review: "发起审查",
   tasks: "任务中心",
   skills: "Skill 注册中心",
-  evolution: "演进实验室",
+  evolution: "评测实验室",
 };
 
 const stateLabels = {
@@ -279,7 +279,7 @@ function populateFeedbackFindings(findings) {
 function renderTaskFeedback(cases) {
   const root = $("#task-feedback-history");
   if (!cases.length) {
-    root.innerHTML = '<p class="feedback-empty">尚无反馈。提交后，它会在这里保留并进入后续评测。</p>';
+    root.innerHTML = '<p class="feedback-empty">尚无反馈。提交后在这里保留，需在评测实验室手动发起候选生成。</p>';
     return;
   }
   root.innerHTML = `<p class="list-section-label">本任务反馈</p>${cases.map((item) => {
@@ -291,7 +291,7 @@ function renderTaskFeedback(cases) {
     return `<div class="feedback-case">
       <span class="feedback-case-type">${escapeHtml(feedbackLabels[item.category] || item.category)}</span>
       <span class="feedback-case-copy"><b>${escapeHtml(reference)}</b><small>${escapeHtml(payload.note || "未填写说明")}</small></span>
-      <span class="status ${item.resolved ? "state-success" : "state-pending"}">${item.resolved ? "已解决" : "待评测"}</span>
+      <span class="status ${item.resolved ? "state-success" : "state-pending"}">${item.resolved ? "已解决" : "待处理"}</span>
     </div>`;
   }).join("")}`;
 }
@@ -328,42 +328,170 @@ async function loadSkills() {
   }
 }
 
-async function loadFailures() {
-  try {
-    const [failuresData, status, runsData] = await Promise.all([
-      api("/api/failures"),
-      api("/v1/evolution/status"),
-      api("/v1/evolution/runs?limit=5"),
-    ]);
-    $("#evolution-status").textContent = formatJson(status);
-    const cases = failuresData.cases || [];
-    const runs = runsData.runs || [];
-    const failureHtml = cases.length
-      ? cases.slice(0, 8).map((item) => `
-          <div class="task-row">
-            <span class="task-main"><span class="task-glyph">FC</span><span class="task-copy">
-              <span class="task-name">${escapeHtml(feedbackLabels[item.category] || item.category)}</span>
-              <span class="task-meta"><span>${escapeHtml(item.task_id)}</span><span>${escapeHtml((item.payload || {}).note || "无说明")}</span></span>
-            </span></span>
-            <span class="status ${item.resolved ? "state-success" : "state-pending"}">${item.resolved ? "已解决" : "待处理"}</span>
-          </div>`).join("")
-      : '<div class="empty-state"><span><b>暂无失败反馈</b>系统当前没有未处理案例</span></div>';
-    const historyHtml = runs.length
-      ? `<p class="list-section-label">最近评测</p>${runs.map((run) => `
-          <div class="task-row">
-            <span class="task-main"><span class="task-glyph">V${escapeHtml(run.candidate_version)}</span><span class="task-copy">
-              <span class="task-name">${escapeHtml(run.decision)}</span>
-              <span class="task-meta">${Number(run.candidate_score).toFixed(3)} vs ${Number(run.baseline_score).toFixed(3)}</span>
-            </span></span>
-          </div>`).join("")}`
-      : "";
-    $("#failure-list").innerHTML = failureHtml + historyHtml;
-  } catch (error) {
-    $("#evolution-status").textContent = "暂时无法读取评测状态。";
-    $("#failure-list").innerHTML = '<div class="empty-state"><span>反馈加载失败</span></div>';
-    toast(error.message);
-  }
+const evolutionDecisions = { activated: "评测通过，已激活过", shadow_ready: "评测通过，待激活", rejected: "未通过", deferred: "暂缓评测" };
+
+function renderEvolutionRuns(runs, kind, status = {}) {
+  return runs.length ? runs.map(run => `<details class="evolution-run">
+    <summary>${escapeHtml(run.skill_name)} · V${escapeHtml(run.candidate_version)} · ${escapeHtml((kind === "prompt" ? run.skill_name === "llm-review" : run.skill_name === status.skill_name) && run.candidate_version === status.active_version ? "当前激活" : (evolutionDecisions[run.decision] || run.decision))}
+      <small>${escapeHtml(formatTime(run.created_at))} · 新 ${Number(run.candidate_score).toFixed(3)} / 旧 ${Number(run.baseline_score).toFixed(3)}</small>
+    </summary>
+    <p>${escapeHtml(run.metrics?.reason || "")}</p>
+    ${kind === "prompt" && run.skill_name === "llm-review" && run.decision === "shadow_ready" && run.candidate_version !== status.active_version ? `<button class="button" data-activate-prompt="${escapeHtml(run.candidate_version)}">激活此 Prompt 版本</button>` : ""}
+    <pre>${escapeHtml(formatJson(run))}</pre>
+  </details>`).join("") : '<p class="empty-state">暂无评测记录</p>';
 }
+
+const evolutionVersions = {prompt: [], skill: []};
+
+function renderVersionChoices(kind, versions, name) {
+  evolutionVersions[kind] = versions;
+  const select = $(`#${kind}-rollback-version`);
+  const previous = select.dataset.skillName === name ? select.value : "";
+  select.dataset.skillName = name;
+  select.innerHTML = '<option value="">选择历史版本</option>' + versions.map(v =>
+    `<option value="${Number(v.version)}">V${Number(v.version)} · ${v.active ? "当前激活" : "历史版本"} · 评测分数 ${Number(v.score).toFixed(3)}</option>`
+  ).join("");
+  select.value = versions.some(v => String(v.version) === previous) ? previous : "";
+  const selected = versions.find(v => String(v.version) === select.value);
+  $(`#${kind}-version-detail`).textContent = selected ? formatJson(selected) : versions.length ? "请选择版本（当前版本也可查看）" : "没有已保存版本，无法回滚";
+}
+
+["prompt", "skill"].forEach(kind => {
+  $(`#${kind}-rollback-version`).addEventListener("change", event => {
+    const version = evolutionVersions[kind].find(v => String(v.version) === event.target.value);
+    $(`#${kind}-version-detail`).textContent = version ? formatJson(version) : "请选择版本";
+  });
+  $(`#${kind}-rollback-form`).addEventListener("submit", async event => {
+    event.preventDefault();
+    const select = $(`#${kind}-rollback-version`);
+    if (!select.value) return;
+    const button = $('button[type="submit"]', event.currentTarget);
+    const output = $(`#${kind}-rollback-result`);
+    const name = select.dataset.skillName;
+    const selected = evolutionVersions[kind].find(v => String(v.version) === select.value);
+    if (!selected) { output.textContent = "所选版本已不可用，请刷新后重试。"; return; }
+    if (selected.active) { output.textContent = "所选版本已经激活，无需重复切换。"; return; }
+    if (kind === "skill" && name !== $('#skill-evolution-form [name="skill_name"]').value.trim()) {
+      output.textContent = "Skill 名称已变更，请刷新版本列表后重试。"; return;
+    }
+    setButtonBusy(button, true, "正在切换…");
+    try {
+      const base = kind === "prompt" ? "/v1/skills" : "/v1/skill-evolution";
+      const version = select.value;
+      const data = await api(`${base}/${encodeURIComponent(name)}/versions/${encodeURIComponent(version)}/activate`, {method:"POST", body:"{}"});
+      if (!data.activated) throw new Error("版本未激活");
+      output.textContent = `${name} 已切换到 V${version}，后续审查使用此版本。`;
+      await loadFailures();
+    } catch (error) { output.textContent = `切换失败：${error.message}`; }
+    finally { setButtonBusy(button, false); }
+  });
+});
+
+async function loadFailures() {
+  // Load each panel independently so a Skill permission error cannot hide Prompt history.
+  await Promise.all(["prompt", "skill"].map(async kind => {
+    const statusNode = $(kind === "prompt" ? "#evolution-status" : "#skill-evolution-status");
+    const historyNode = $(`#${kind}-history`);
+    const base = kind === "prompt" ? "/v1/evolution" : "/v1/skill-evolution";
+    const name = $('#skill-evolution-form [name="skill_name"]').value.trim();
+    const results = await Promise.allSettled([
+      api(`${base}/status${kind === "skill" ? `?skill_name=${encodeURIComponent(name)}` : ""}`),
+      api(`${base}/runs?limit=50`),
+      api(kind === "prompt" ? "/v1/skills/llm-review/versions" : `/v1/skill-evolution/${encodeURIComponent(name)}/versions`),
+    ]);
+    const [status, data, versions] = results;
+    statusNode.textContent = status.status === "fulfilled" ? formatJson(status.value) : `读取失败：${status.reason.message}`;
+    historyNode.innerHTML = data.status === "fulfilled" ? renderEvolutionRuns(data.value.runs || [], kind, status.status === "fulfilled" ? status.value : {}) : "";
+    if (data.status === "rejected") historyNode.textContent = `无法读取评测记录：${data.reason.message}`;
+    renderVersionChoices(kind, versions.status === "fulfilled" ? versions.value.versions || [] : [], kind === "prompt" ? "llm-review" : name);
+    if (versions.status === "rejected") $(`#${kind}-version-detail`).textContent = `版本列表读取失败：${versions.reason.message}。请确认后端已重启且账号具有管理权限。`;
+
+  }));
+}
+
+$$("[data-evolution-tab]").forEach(button => {
+  button.addEventListener("click", () => {
+    $$("[data-evolution-tab]").forEach(tab => {
+      const active = tab === button;
+      tab.setAttribute("aria-selected", String(active));
+      tab.tabIndex = active ? 0 : -1;
+      tab.classList.toggle("secondary", !active);
+      $(`#${tab.dataset.evolutionTab}-panel`).hidden = !active;
+    });
+  });
+  button.addEventListener("keydown", event => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const tabs = $$("[data-evolution-tab]");
+    const next = event.key === "Home" ? tabs[0] : event.key === "End" ? tabs[1] : tabs.find(tab => tab !== button);
+    next.click(); next.focus();
+  });
+});
+
+$("#prompt-history").addEventListener("click", async event => {
+  const button = event.target.closest("[data-activate-prompt]");
+  if (!button) return;
+  setButtonBusy(button, true, "正在激活…");
+  try {
+    const version = button.dataset.activatePrompt;
+    if (!/^\d+$/.test(version)) throw new Error("无效的候选版本号");
+    const result = await api(`/v1/skills/llm-review/versions/${version}/activate`, {method: "POST", body: "{}"});
+    if (!result.activated) throw new Error("版本未激活");
+    $("#evolution-result").classList.remove("empty");
+    $("#evolution-result").textContent = `Prompt V${version} 已激活，后续审查将使用此版本。历史评测状态保留原始结论。`;
+    await loadFailures();
+    toast(`Prompt V${version} 已激活`);
+  } catch (error) { toast(error.message); }
+  finally { setButtonBusy(button, false); }
+});
+
+$('#skill-evolution-form [name="skill_name"]').addEventListener("change", loadFailures);
+$("#skill-evolution-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = $('button[type="submit"]', form);
+  setButtonBusy(button, true, "正在评测…");
+  try {
+    const values = new FormData(form);
+    const raw = values.get("supporting_files").trim();
+    const files = raw ? JSON.parse(raw) : {};
+    if (!files || Array.isArray(files) || typeof files !== "object" || Object.values(files).some(value => typeof value !== "string")) {
+      throw new Error("配套文件必须是文件路径到文本内容的 JSON 对象");
+    }
+    if (Object.hasOwn(files, "SKILL.md")) throw new Error("请在完整 SKILL.md 输入框中填写主文件");
+    const result = await api("/v1/skill-evolution/propose", {method: "POST", body: JSON.stringify({
+      skill_name: values.get("skill_name").trim(), skill_md: values.get("skill_md"), supporting_files: files,
+    })});
+    $("#skill-evolution-result").classList.remove("empty");
+    $("#skill-evolution-result").textContent = formatJson(result);
+    await loadFailures();
+    toast(result.decision === "activated" ? "Skill 已激活，后续任务选中后生效" : (evolutionDecisions[result.decision] || "候选处理完成"));
+  } catch (error) {
+    $("#skill-evolution-result").textContent = `提交失败：${error.message}`;
+    toast(error.message);
+  } finally { setButtonBusy(button, false); }
+});
+
+$("#auto-evolve-skill").addEventListener("click", async () => {
+  const input = $('#skill-evolution-form [name="skill_name"]');
+  if (!input.reportValidity()) return;
+  const button = $("#auto-evolve-skill");
+  setButtonBusy(button, true, "正在生成并评测…");
+  const output = $("#skill-evolution-result");
+  output.classList.remove("empty");
+  output.textContent = "正在从反馈生成候选并评测…";
+  try {
+    const data = await api("/v1/skill-evolution/auto", {
+      method: "POST", body: JSON.stringify({skill_name: input.value.trim()}),
+    });
+    output.textContent = formatJson(data);
+    await loadFailures();
+    toast(data.decision === "activated" ? "Skill 已激活，后续任务选中后生效" : (evolutionDecisions[data.decision] || "候选处理完成"));
+  } catch (error) {
+    output.textContent = `生成失败：${error.message}`;
+    toast(error.message);
+  } finally { setButtonBusy(button, false); }
+});
 
 let reviewBusy = false;
 const submittedReviews = new Map();
@@ -473,7 +601,7 @@ $("#feedback-category").addEventListener("change", (event) => {
   $("#feedback-missed-fields").classList.toggle("hidden", !missed);
   $("#feedback-hint").textContent = missed
     ? "补充规则和位置可让候选评测学习更精确的检查点。"
-    : "提交后可在本任务和演进实验室查看状态。";
+    : "提交后可在本任务查看反馈，在评测实验室手动发起候选生成。";
 });
 
 $("#feedback-form").addEventListener("submit", async (event) => {
@@ -506,10 +634,10 @@ $("#feedback-form").addEventListener("submit", async (event) => {
         note: String(values.get("note") || "").trim(),
       }),
     });
-    output.textContent = `${feedbackLabels[data.category] || data.category}已记录；可在演进实验室等待候选评测。`;
+    output.textContent = `${feedbackLabels[data.category] || data.category}已记录；请在评测实验室点击“从反馈生成候选”发起评测。`;
     form.reset();
     $("#feedback-missed-fields").classList.add("hidden");
-    $("#feedback-hint").textContent = "提交后可在本任务和演进实验室查看状态。";
+    $("#feedback-hint").textContent = "提交后可在本任务查看反馈，在评测实验室手动发起候选生成。";
     await Promise.all([loadTaskFeedback(selectedTask), loadDashboard()]);
     toast("反馈已记录");
   } catch (error) {
@@ -584,7 +712,7 @@ $("#refresh").addEventListener("click", async () => {
   else if (view === "skills") await loadSkills();
   else if (view === "evolution") await loadFailures();
   else await loadDashboard();
-  toast("数据已刷新");
+  toast("刷新请求已完成，请查看各区域状态");
 });
 
 $("#login-form").addEventListener("submit", async (event) => {
@@ -608,6 +736,7 @@ $("#login-form").addEventListener("submit", async (event) => {
     $("#logout").classList.remove("hidden");
     $("#login-error").textContent = "";
     await loadDashboard();
+    show(location.hash.slice(1) || "overview", false);
   } catch (error) {
     $("#login-error").textContent = error.message;
   } finally {

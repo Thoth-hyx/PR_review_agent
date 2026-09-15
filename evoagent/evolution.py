@@ -312,6 +312,7 @@ class EvolutionEngine:
         }
 
     def status(self) -> Dict[str, Any]:
+        active = self.store.get_active_skill_version("llm-review")
         cases = self.store.list_evaluation_cases("validation", True, self.max_cases)
         holdout = self.store.list_evaluation_cases("holdout", True, self.max_cases)
         return {
@@ -321,6 +322,7 @@ class EvolutionEngine:
             "minimum_cases": self.min_cases,
             "minimum_holdout_cases": self.min_holdout_cases,
             "maximum_cases_per_run": self.max_cases,
+            "active_version": active["version"] if active else None,
             "minimum_improvement": self.min_improvement,
             "maximum_metric_regression": self.max_metric_regression,
             "validation_dataset_fingerprint": self._dataset_fingerprint(cases),

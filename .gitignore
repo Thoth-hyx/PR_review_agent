@@ -5,3 +5,5 @@ __pycache__/
 .pytest_cache/
 .claude/
 review-worker-fix/
+tests/
+pr_diff_100.jsonl

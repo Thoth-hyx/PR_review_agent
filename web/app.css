@@ -750,3 +750,27 @@ textarea { min-height: 150px; resize: vertical; font: 11px/1.7 "Cascadia Code", 
 .review-warning { background:#fff7ed; color:#9a3412; border-left:4px solid #f97316; padding:16px; overflow-wrap:anywhere; }
 .report-empty { padding:24px 0; color:var(--muted); }
 @media(max-width:600px) { #review-result,.finding-card { padding:14px; } .diff-summary { align-items:flex-start; flex-direction:column; } }
+
+/* Evolution panels reuse the existing form and card layout. */
+.evolution-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+#view-evolution [role="tabpanel"][hidden] { display: none; }
+#view-evolution details.panel { margin-bottom: 16px; }
+#view-evolution summary { cursor: pointer; overflow-wrap: anywhere; }
+#view-evolution pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 420px; overflow: auto; }
+#view-evolution .panel { min-width: 0; }
+.evolution-run { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.evolution-run small { display: block; margin-top: 6px; color: var(--faint); }
+
+#view-evolution [role="tabpanel"] > .panel { margin-bottom: 20px; }
+#view-evolution form { display: flex; flex-direction: column; gap: 16px; }
+#view-evolution form > label { margin: 0; }
+#view-evolution form > p { margin: 0; color: var(--faint); font-size: 12px; line-height: 1.65; }
+#view-evolution form > details { padding: 14px 16px; border: 1px solid var(--line); border-radius: 6px; }
+#view-evolution form > details[open] > summary { margin-bottom: 16px; }
+#view-evolution .evaluation-actions { display: flex; flex-wrap: wrap; gap: 12px; padding-top: 8px; }
+#view-evolution form > .button { align-self: flex-start; margin-top: 8px; }
+#view-evolution .panel > h3 { margin-bottom: 16px; }
+@media (max-width: 640px) {
+  #view-evolution .evaluation-actions { flex-direction: column; }
+  #view-evolution .evaluation-actions .button { width: 100%; white-space: normal; }
+}

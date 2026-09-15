@@ -24,6 +24,7 @@ FIX = re.compile(r"^/v1/tasks/([0-9a-f-]+)/fix$")
 FEEDBACK = re.compile(r"^/v1/tasks/([0-9a-f-]+)/feedback$")
 CANCEL = re.compile(r"^/v1/tasks/([0-9a-f-]+)/cancel$")
 RESUME = re.compile(r"^/v1/tasks/([0-9a-f-]+)/resume$")
+PROMPT_VERSIONS = re.compile(r"^/v1/skills/([A-Za-z0-9_-]+)/versions$")
 ROLLBACK = re.compile(r"^/v1/skills/([A-Za-z0-9_-]+)/versions/(\d+)/activate$")
 SKILL_ARTIFACT_VERSIONS = re.compile(r"^/v1/skill-evolution/([a-z0-9_-]+)/versions$")
 SKILL_ARTIFACT_ACTIVATE = re.compile(
@@ -244,6 +245,13 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"runs": self.service.store.list_skill_evolution_runs(
                 int(query.get("limit", [50])[0]), principal.tenant_id
             )})
+            return
+        match = PROMPT_VERSIONS.match(path)
+        if match:
+            if not principal.can("manage"):
+                self._send_json(403, {"error": "permission denied"})
+                return
+            self._send_json(200, {"versions": self.service.store.list_skill_versions(match.group(1))})
             return
         match = SKILL_ARTIFACT_VERSIONS.match(path)
         if match:
